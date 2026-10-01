@@ -1,5 +1,8 @@
 import * as THREE from "https://unpkg.com/three@0.164.1/build/three.module.js";
 import { OrbitControls } from "https://unpkg.com/three@0.164.1/examples/jsm/controls/OrbitControls.js?module";
+import { Line2 } from "https://unpkg.com/three@0.164.1/examples/jsm/lines/Line2.js?module";
+import { LineMaterial } from "https://unpkg.com/three@0.164.1/examples/jsm/lines/LineMaterial.js?module";
+import { LineGeometry } from "https://unpkg.com/three@0.164.1/examples/jsm/lines/LineGeometry.js?module";
 
 const container = document.querySelector("#scene");
 const scene = new THREE.Scene();
@@ -279,17 +282,43 @@ for (let j = 0; j < GRID - 1; j++) {
   }
 }
 
-const roadMaterial = new THREE.LineBasicMaterial({ color: 0x536071, transparent: true, opacity: 0.9 });
 const roadObjects = new Map();
 const edges = [];
 const adjacency = Array.from({ length: GRID * GRID }, () => []);
 
 function edgeId(a, b) { return a < b ? `${a}-${b}` : `${b}-${a}`; }
 
+function makeWideLine(points, color, width, opacity = 1) {
+  const geometry = new LineGeometry();
+  const positions = [];
+  for (const p of points) {
+    positions.push(p.x, p.y, p.z);
+  }
+  geometry.setPositions(positions);
+
+  const material = new LineMaterial({
+    color,
+    linewidth: width,
+    transparent: opacity < 1,
+    opacity,
+    depthTest: true,
+    depthWrite: false
+  });
+  material.resolution.set(innerWidth, innerHeight);
+
+  const line = new Line2(geometry, material);
+  line.computeLineDistances();
+  return line;
+}
+
 function addRoad(a, b) {
   const id = edgeId(a, b);
-  const geometry = new THREE.BufferGeometry().setFromPoints([nodePositions[a], nodePositions[b]]);
-  const line = new THREE.Line(geometry, roadMaterial.clone());
+  const line = makeWideLine(
+    [nodePositions[a], nodePositions[b]],
+    0x536071,
+    2.8,
+    0.58
+  );
   scene.add(line);
   roadObjects.set(id, line);
 
@@ -313,14 +342,29 @@ function trafficColor(level) {
   return new THREE.Color().setHSL(0.34 * (1 - t), 0.72, 0.52);
 }
 
+function trafficWidth(level) {
+  const t = THREE.MathUtils.clamp((level - 1) / 2, 0, 1);
+  return THREE.MathUtils.lerp(2.6, 8.5, t);
+}
+
 function updateRoadAppearance() {
   for (const [id, line] of roadObjects) {
-    line.material.color.copy(trafficColor(state.roadTraffic.get(id)));
-    line.material.opacity = 0.55;
+    const level = state.roadTraffic.get(id);
+    line.material.color.copy(trafficColor(level));
+    line.material.linewidth = trafficWidth(level);
+    line.material.opacity = 0.62;
+    line.material.transparent = true;
+    line.material.needsUpdate = true;
   }
+
   for (const id of state.route.edgeIds) {
     const line = roadObjects.get(id);
-    if (line) line.material.opacity = 0.9;
+    if (line) {
+      const level = state.roadTraffic.get(id);
+      line.material.linewidth = trafficWidth(level) + 1.4;
+      line.material.opacity = 0.92;
+      line.material.needsUpdate = true;
+    }
   }
 }
 
@@ -401,12 +445,13 @@ function buildActiveRoute(start, goal, phase, updateTripEstimate = false) {
     state.trip.fare = +(4.2 + distance * 0.0029 + state.trip.estimatedTime * 0.48).toFixed(2);
   }
 
-  if (routeLine) scene.remove(routeLine);
+  if (routeLine) {
+    scene.remove(routeLine);
+    routeLine.geometry.dispose();
+    routeLine.material.dispose();
+  }
   const points = result.path.map(index => nodePositions[index].clone().setY(0.12));
-  routeLine = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints(points),
-    new THREE.LineBasicMaterial({ color: routeColor(phase) })
-  );
+  routeLine = makeWideLine(points, routeColor(phase), 6.5, 0.96);
   routeLine.visible = state.status !== "idle";
   scene.add(routeLine);
 
@@ -753,6 +798,13 @@ window.addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+
+  for (const [, line] of roadObjects) {
+    line.material.resolution.set(innerWidth, innerHeight);
+  }
+  if (routeLine) {
+    routeLine.material.resolution.set(innerWidth, innerHeight);
+  }
 });
 
 function animate(now) {
