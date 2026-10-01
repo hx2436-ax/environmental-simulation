@@ -1,8 +1,5 @@
 import * as THREE from "https://unpkg.com/three@0.164.1/build/three.module.js";
 import { OrbitControls } from "https://unpkg.com/three@0.164.1/examples/jsm/controls/OrbitControls.js?module";
-import { Line2 } from "https://unpkg.com/three@0.164.1/examples/jsm/lines/Line2.js?module";
-import { LineMaterial } from "https://unpkg.com/three@0.164.1/examples/jsm/lines/LineMaterial.js?module";
-import { LineGeometry } from "https://unpkg.com/three@0.164.1/examples/jsm/lines/LineGeometry.js?module";
 
 const container = document.querySelector("#scene");
 const scene = new THREE.Scene();
@@ -164,14 +161,14 @@ function addNYCBuilding(x, z, w, d, baseHeight, seed, typology = "streetwall") {
   const material = facadeMaterials[Math.floor(hash01(seed, 1, 60) * facadeMaterials.length)];
 
   if (typology === "tower") {
-    const podiumH = Math.max(2.2, Math.min(baseHeight * 0.34, 4.4));
+    const podiumH = Math.max(1.15, Math.min(baseHeight * 0.34, 2.2));
     addBoxMass(x, 0, z, w, podiumH, d, material);
 
     const setbackX = w * (0.15 + hash01(seed, 10, 61) * 0.10);
     const setbackZ = d * (0.13 + hash01(seed, 11, 62) * 0.10);
     const towerW = Math.max(0.34, w - setbackX * 2);
     const towerD = Math.max(0.34, d - setbackZ * 2);
-    const towerH = Math.max(4.5, baseHeight - podiumH);
+    const towerH = Math.max(2.4, baseHeight - podiumH);
     const towerOffsetX = (hash01(seed, 12, 63) - 0.5) * w * 0.08;
     const towerOffsetZ = (hash01(seed, 13, 64) - 0.5) * d * 0.06;
 
@@ -185,8 +182,8 @@ function addNYCBuilding(x, z, w, d, baseHeight, seed, typology = "streetwall") {
       material
     );
 
-    if (towerH > 8 && hash01(seed, 14, 65) > 0.42) {
-      const crownH = 0.7 + hash01(seed, 15, 66) * 1.4;
+    if (towerH > 4.5 && hash01(seed, 14, 65) > 0.48) {
+      const crownH = 0.32 + hash01(seed, 15, 66) * 0.55;
       const crownW = towerW * (0.68 + hash01(seed, 16, 67) * 0.16);
       const crownD = towerD * (0.68 + hash01(seed, 17, 68) * 0.16);
       addBoxMass(
@@ -205,11 +202,11 @@ function addNYCBuilding(x, z, w, d, baseHeight, seed, typology = "streetwall") {
     return;
   }
 
-  const streetwallH = Math.max(1.4, baseHeight);
+  const streetwallH = Math.max(0.85, baseHeight);
   addBoxMass(x, 0, z, w, streetwallH, d, material);
 
-  if (streetwallH > 4.5 && hash01(seed, 18, 69) > 0.48) {
-    const upperH = 1.0 + hash01(seed, 19, 70) * 2.4;
+  if (streetwallH > 2.7 && hash01(seed, 18, 69) > 0.56) {
+    const upperH = 0.45 + hash01(seed, 19, 70) * 1.0;
     const upperW = w * (0.72 + hash01(seed, 20, 71) * 0.12);
     const upperD = d * (0.72 + hash01(seed, 21, 72) * 0.12);
     addBoxMass(x, streetwallH, z, upperW, upperH, upperD, material);
@@ -252,17 +249,17 @@ for (let j = 0; j < GRID - 1; j++) {
         const cornerLot = nearWestAvenue || nearEastAvenue;
         const midtownBand = j === 2 || j === 3;
 
-        let height = 1.5 + hash01(i * 7 + lot, j * 11 + row, 33) * 3.8;
-        if (cornerLot) height += 1.3 + hash01(i, j + lot, 34) * 2.4;
-        if (midtownBand) height += 0.8 + hash01(lot, i + j, 35) * 2.0;
+        let height = 0.85 + hash01(i * 7 + lot, j * 11 + row, 33) * 1.65;
+        if (cornerLot) height += 0.35 + hash01(i, j + lot, 34) * 0.75;
+        if (midtownBand) height += 0.25 + hash01(lot, i + j, 35) * 0.65;
 
         const towerChance =
-          (cornerLot ? 0.23 : 0.06) +
-          (midtownBand ? 0.12 : 0);
+          (cornerLot ? 0.14 : 0.025) +
+          (midtownBand ? 0.06 : 0);
 
         const isTower = hash01(i * 19 + lot, j * 23 + row, 36) < towerChance;
         if (isTower) {
-          height += 5.5 + hash01(i + lot, j + row, 37) * 8.5;
+          height += 2.3 + hash01(i + lot, j + row, 37) * 2.8;
         }
 
         addNYCBuilding(
@@ -286,43 +283,58 @@ const roadObjects = new Map();
 const edges = [];
 const adjacency = Array.from({ length: GRID * GRID }, () => []);
 
+const roadSurfaceMaterial = new THREE.MeshStandardMaterial({
+  color: 0x8f8a9d,
+  roughness: 0.96,
+  metalness: 0.0
+});
+
 function edgeId(a, b) { return a < b ? `${a}-${b}` : `${b}-${a}`; }
 
-function makeWideLine(points, color, width, opacity = 1) {
-  const geometry = new LineGeometry();
-  const positions = [];
-  for (const p of points) {
-    positions.push(p.x, p.y, p.z);
-  }
-  geometry.setPositions(positions);
+function makeStrip(start, end, width, color, y = 0.07, opacity = 1) {
+  const dx = end.x - start.x;
+  const dz = end.z - start.z;
+  const length = Math.hypot(dx, dz);
 
-  const material = new LineMaterial({
+  const material = new THREE.MeshBasicMaterial({
     color,
-    linewidth: width,
     transparent: opacity < 1,
     opacity,
     depthTest: true,
-    depthWrite: false
+    depthWrite: true
   });
-  material.resolution.set(innerWidth, innerHeight);
 
-  const line = new Line2(geometry, material);
-  line.computeLineDistances();
-  return line;
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(length, 0.035, width),
+    material
+  );
+
+  mesh.position.set(
+    (start.x + end.x) / 2,
+    y,
+    (start.z + end.z) / 2
+  );
+  mesh.rotation.y = -Math.atan2(dz, dx);
+  return mesh;
 }
 
 function addRoad(a, b) {
   const id = edgeId(a, b);
-  const line = makeWideLine(
-    [nodePositions[a], nodePositions[b]],
-    0x536071,
-    2.8,
-    0.58
-  );
-  scene.add(line);
-  roadObjects.set(id, line);
+  const start = nodePositions[a];
+  const end = nodePositions[b];
+  const isAvenue = Math.abs(end.z - start.z) > Math.abs(end.x - start.x);
+  const surfaceWidth = isAvenue ? AVENUE_WIDTH : STREET_WIDTH;
 
-  const distance = nodePositions[a].distanceTo(nodePositions[b]) * 115;
+  const surface = makeStrip(start, end, surfaceWidth, 0x8f8a9d, 0.045, 0.92);
+  surface.material = roadSurfaceMaterial.clone();
+  scene.add(surface);
+
+  const traffic = makeStrip(start, end, 0.13, 0x69c98b, 0.085, 0.98);
+  scene.add(traffic);
+
+  roadObjects.set(id, { surface, traffic, isAvenue });
+
+  const distance = start.distanceTo(end) * 115;
   const edge = { id, a, b, distance };
   edges.push(edge);
   adjacency[a].push(edge);
@@ -339,31 +351,31 @@ for (let j = 0; j < GRID; j++) {
 
 function trafficColor(level) {
   const t = THREE.MathUtils.clamp((level - 1) / 2, 0, 1);
-  return new THREE.Color().setHSL(0.34 * (1 - t), 0.72, 0.52);
+  return new THREE.Color().setHSL(0.34 * (1 - t), 0.78, 0.47);
 }
 
 function trafficWidth(level) {
   const t = THREE.MathUtils.clamp((level - 1) / 2, 0, 1);
-  return THREE.MathUtils.lerp(2.6, 8.5, t);
+  return THREE.MathUtils.lerp(0.10, 0.34, t);
+}
+
+function setStripWidth(mesh, width) {
+  const box = mesh.geometry.parameters;
+  mesh.scale.z = width / box.depth;
 }
 
 function updateRoadAppearance() {
-  for (const [id, line] of roadObjects) {
+  for (const [id, road] of roadObjects) {
     const level = state.roadTraffic.get(id);
-    line.material.color.copy(trafficColor(level));
-    line.material.linewidth = trafficWidth(level);
-    line.material.opacity = 0.62;
-    line.material.transparent = true;
-    line.material.needsUpdate = true;
+    road.traffic.material.color.copy(trafficColor(level));
+    setStripWidth(road.traffic, trafficWidth(level));
+    road.traffic.material.opacity = 0.98;
   }
 
   for (const id of state.route.edgeIds) {
-    const line = roadObjects.get(id);
-    if (line) {
-      const level = state.roadTraffic.get(id);
-      line.material.linewidth = trafficWidth(level) + 1.4;
-      line.material.opacity = 0.92;
-      line.material.needsUpdate = true;
+    const road = roadObjects.get(id);
+    if (road) {
+      setStripWidth(road.traffic, trafficWidth(state.roadTraffic.get(id)) + 0.06);
     }
   }
 }
@@ -447,11 +459,27 @@ function buildActiveRoute(start, goal, phase, updateTripEstimate = false) {
 
   if (routeLine) {
     scene.remove(routeLine);
-    routeLine.geometry.dispose();
-    routeLine.material.dispose();
+    routeLine.traverse(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
   }
-  const points = result.path.map(index => nodePositions[index].clone().setY(0.12));
-  routeLine = makeWideLine(points, routeColor(phase), 6.5, 0.96);
+
+  routeLine = new THREE.Group();
+  const routePoints = result.path.map(index => nodePositions[index]);
+  for (let i = 0; i < routePoints.length - 1; i++) {
+    const segment = makeStrip(
+      routePoints[i],
+      routePoints[i + 1],
+      0.18,
+      routeColor(phase),
+      0.145,
+      1
+    );
+    segment.material.depthTest = false;
+    segment.renderOrder = 20;
+    routeLine.add(segment);
+  }
   routeLine.visible = state.status !== "idle";
   scene.add(routeLine);
 
@@ -798,13 +826,6 @@ window.addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
-
-  for (const [, line] of roadObjects) {
-    line.material.resolution.set(innerWidth, innerHeight);
-  }
-  if (routeLine) {
-    routeLine.material.resolution.set(innerWidth, innerHeight);
-  }
 });
 
 function animate(now) {
