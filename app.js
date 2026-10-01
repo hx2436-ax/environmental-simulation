@@ -6,8 +6,8 @@ import { LineGeometry } from "https://unpkg.com/three@0.164.1/examples/jsm/lines
 
 const container = document.querySelector("#scene");
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x090c12);
-scene.fog = new THREE.Fog(0x090c12, 34, 92);
+scene.background = new THREE.Color(0xe9e4f7);
+scene.fog = new THREE.Fog(0xe9e4f7, 34, 92);
 
 const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 140);
 camera.position.set(28, 25, 23);
@@ -26,8 +26,8 @@ controls.maxPolarAngle = Math.PI * 0.47;
 controls.minDistance = 10;
 controls.maxDistance = 68;
 
-scene.add(new THREE.HemisphereLight(0xb9d6ff, 0x151619, 2.5));
-const sun = new THREE.DirectionalLight(0xffffff, 2.1);
+scene.add(new THREE.HemisphereLight(0xfff7ff, 0xb7aec8, 2.7));
+const sun = new THREE.DirectionalLight(0xfff3dc, 2.2);
 sun.position.set(9, 19, 7);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -77,7 +77,7 @@ for (let j = 0; j < GRID; j++) {
 
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(92, 56),
-  new THREE.MeshStandardMaterial({ color: 0x10151d, roughness: 0.97 })
+  new THREE.MeshStandardMaterial({ color: 0xc9c5d7, roughness: 0.97 })
 );
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
@@ -92,21 +92,21 @@ function hash01(i, j, salt = 0) {
 }
 
 const facadeMaterials = [
-  new THREE.MeshStandardMaterial({ color: 0x4a3028, roughness: 0.93, metalness: 0.02 }),
-  new THREE.MeshStandardMaterial({ color: 0x6a5c4f, roughness: 0.90, metalness: 0.02 }),
-  new THREE.MeshStandardMaterial({ color: 0x827d73, roughness: 0.88, metalness: 0.03 }),
-  new THREE.MeshStandardMaterial({ color: 0x252b33, roughness: 0.48, metalness: 0.28 }),
-  new THREE.MeshStandardMaterial({ color: 0x343b43, roughness: 0.58, metalness: 0.18 })
+  new THREE.MeshStandardMaterial({ color: 0xcda6a8, roughness: 0.93, metalness: 0.02 }),
+  new THREE.MeshStandardMaterial({ color: 0xd8c4ae, roughness: 0.90, metalness: 0.02 }),
+  new THREE.MeshStandardMaterial({ color: 0xd9d1dc, roughness: 0.88, metalness: 0.03 }),
+  new THREE.MeshStandardMaterial({ color: 0x9aa8c6, roughness: 0.48, metalness: 0.28 }),
+  new THREE.MeshStandardMaterial({ color: 0xb1a7c8, roughness: 0.58, metalness: 0.18 })
 ];
 
 const roofMaterial = new THREE.MeshStandardMaterial({
-  color: 0x32343a,
+  color: 0xaaa6b7,
   roughness: 0.92,
   metalness: 0.08
 });
 
 const tankMaterial = new THREE.MeshStandardMaterial({
-  color: 0x6f604f,
+  color: 0xb49b82,
   roughness: 0.96,
   metalness: 0.02
 });
@@ -492,14 +492,14 @@ scene.add(rider);
 const vehicle = new THREE.Group();
 const carBody = new THREE.Mesh(
   new THREE.BoxGeometry(1.15, 0.42, 0.68),
-  new THREE.MeshStandardMaterial({ color: 0xf0f3f8, metalness: 0.2, roughness: 0.45 })
+  new THREE.MeshStandardMaterial({ color: 0xfff8fb, metalness: 0.16, roughness: 0.38 })
 );
 carBody.position.y = 0.31;
 carBody.castShadow = true;
 vehicle.add(carBody);
 const cabin = new THREE.Mesh(
   new THREE.BoxGeometry(0.58, 0.3, 0.58),
-  new THREE.MeshStandardMaterial({ color: 0x243347, metalness: 0.15, roughness: 0.3 })
+  new THREE.MeshStandardMaterial({ color: 0xb9a7ff, metalness: 0.12, roughness: 0.34 })
 );
 cabin.position.set(-0.08, 0.66, 0);
 vehicle.add(cabin);
