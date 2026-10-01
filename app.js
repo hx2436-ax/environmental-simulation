@@ -88,15 +88,132 @@ function hash01(i, j, salt = 0) {
   return x - Math.floor(x);
 }
 
-function addBuilding(x, z, w, d, h) {
+const facadeMaterials = [
+  new THREE.MeshStandardMaterial({ color: 0x4a3028, roughness: 0.93, metalness: 0.02 }),
+  new THREE.MeshStandardMaterial({ color: 0x6a5c4f, roughness: 0.90, metalness: 0.02 }),
+  new THREE.MeshStandardMaterial({ color: 0x827d73, roughness: 0.88, metalness: 0.03 }),
+  new THREE.MeshStandardMaterial({ color: 0x252b33, roughness: 0.48, metalness: 0.28 }),
+  new THREE.MeshStandardMaterial({ color: 0x343b43, roughness: 0.58, metalness: 0.18 })
+];
+
+const roofMaterial = new THREE.MeshStandardMaterial({
+  color: 0x32343a,
+  roughness: 0.92,
+  metalness: 0.08
+});
+
+const tankMaterial = new THREE.MeshStandardMaterial({
+  color: 0x6f604f,
+  roughness: 0.96,
+  metalness: 0.02
+});
+
+function addBoxMass(x, y, z, w, h, d, material) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
-    new THREE.MeshStandardMaterial({ color: 0x171e29, roughness: 0.88, metalness: 0.05 })
+    material
   );
-  mesh.position.set(x, h / 2, z);
+  mesh.position.set(x, y + h / 2, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   cityGroup.add(mesh);
+  return mesh;
+}
+
+function addRooftopElement(x, z, baseY, w, d, seed) {
+  const mechW = Math.max(0.16, w * (0.28 + hash01(seed, 2, 70) * 0.22));
+  const mechD = Math.max(0.14, d * (0.28 + hash01(seed, 3, 71) * 0.25));
+  const mechH = 0.18 + hash01(seed, 4, 72) * 0.28;
+
+  if (hash01(seed, 5, 73) > 0.28) {
+    addBoxMass(
+      x + (hash01(seed, 6, 74) - 0.5) * w * 0.18,
+      baseY,
+      z + (hash01(seed, 7, 75) - 0.5) * d * 0.18,
+      mechW,
+      mechH,
+      mechD,
+      roofMaterial
+    );
+  }
+
+  if (hash01(seed, 8, 76) > 0.78 && w > 0.55) {
+    const tankRadius = Math.min(0.16, w * 0.15);
+    const tankH = 0.22 + hash01(seed, 9, 77) * 0.18;
+    const tank = new THREE.Mesh(
+      new THREE.CylinderGeometry(tankRadius, tankRadius * 0.92, tankH, 12),
+      tankMaterial
+    );
+    tank.position.set(x, baseY + tankH / 2 + 0.08, z);
+    tank.castShadow = true;
+    cityGroup.add(tank);
+
+    const legs = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.025, 0.025, 0.16, 6),
+      roofMaterial
+    );
+    legs.position.set(x, baseY + 0.08, z);
+    cityGroup.add(legs);
+  }
+}
+
+function addNYCBuilding(x, z, w, d, baseHeight, seed, typology = "streetwall") {
+  const material = facadeMaterials[Math.floor(hash01(seed, 1, 60) * facadeMaterials.length)];
+
+  if (typology === "tower") {
+    const podiumH = Math.max(2.2, Math.min(baseHeight * 0.34, 4.4));
+    addBoxMass(x, 0, z, w, podiumH, d, material);
+
+    const setbackX = w * (0.15 + hash01(seed, 10, 61) * 0.10);
+    const setbackZ = d * (0.13 + hash01(seed, 11, 62) * 0.10);
+    const towerW = Math.max(0.34, w - setbackX * 2);
+    const towerD = Math.max(0.34, d - setbackZ * 2);
+    const towerH = Math.max(4.5, baseHeight - podiumH);
+    const towerOffsetX = (hash01(seed, 12, 63) - 0.5) * w * 0.08;
+    const towerOffsetZ = (hash01(seed, 13, 64) - 0.5) * d * 0.06;
+
+    addBoxMass(
+      x + towerOffsetX,
+      podiumH,
+      z + towerOffsetZ,
+      towerW,
+      towerH,
+      towerD,
+      material
+    );
+
+    if (towerH > 8 && hash01(seed, 14, 65) > 0.42) {
+      const crownH = 0.7 + hash01(seed, 15, 66) * 1.4;
+      const crownW = towerW * (0.68 + hash01(seed, 16, 67) * 0.16);
+      const crownD = towerD * (0.68 + hash01(seed, 17, 68) * 0.16);
+      addBoxMass(
+        x + towerOffsetX,
+        podiumH + towerH,
+        z + towerOffsetZ,
+        crownW,
+        crownH,
+        crownD,
+        material
+      );
+      addRooftopElement(x + towerOffsetX, z + towerOffsetZ, podiumH + towerH + crownH, crownW, crownD, seed);
+    } else {
+      addRooftopElement(x + towerOffsetX, z + towerOffsetZ, podiumH + towerH, towerW, towerD, seed);
+    }
+    return;
+  }
+
+  const streetwallH = Math.max(1.4, baseHeight);
+  addBoxMass(x, 0, z, w, streetwallH, d, material);
+
+  if (streetwallH > 4.5 && hash01(seed, 18, 69) > 0.48) {
+    const upperH = 1.0 + hash01(seed, 19, 70) * 2.4;
+    const upperW = w * (0.72 + hash01(seed, 20, 71) * 0.12);
+    const upperD = d * (0.72 + hash01(seed, 21, 72) * 0.12);
+    addBoxMass(x, streetwallH, z, upperW, upperH, upperD, material);
+    addRooftopElement(x, z, streetwallH + upperH, upperW, upperD, seed);
+  } else {
+    addRooftopElement(x, z, streetwallH, w, d, seed);
+  }
 }
 
 const BLOCK_X = STEP_X - AVENUE_WIDTH;
@@ -107,8 +224,6 @@ for (let j = 0; j < GRID - 1; j++) {
     const cx = -WORLD_X / 2 + (i + 0.5) * STEP_X;
     const cz = -WORLD_Z / 2 + (j + 0.5) * STEP_Z;
 
-    // Two rows of narrow lots evoke Manhattan's 25 x 100 ft parcel logic,
-    // while keeping the simulation light enough to render interactively.
     const rows = [-1, 1];
     for (const row of rows) {
       const rowDepth = BLOCK_Z * (0.36 + hash01(i, j, 20 + row) * 0.08);
@@ -124,13 +239,39 @@ for (let j = 0; j < GRID - 1; j++) {
         );
         if (lotWidth < 0.28) break;
 
-        const gap = 0.07 + hash01(i, j + lot, 31) * 0.09;
+        const gap = 0.06 + hash01(i, j + lot, 31) * 0.07;
         const buildingWidth = Math.max(0.36, lotWidth - gap);
-        const buildingDepth = rowDepth * (0.78 + hash01(i + lot, j, 32) * 0.20);
-        const height = 1.0 + hash01(i * 7 + lot, j * 11 + row, 33) * 6.4;
+        const buildingDepth = rowDepth * (0.82 + hash01(i + lot, j, 32) * 0.16);
         const x = cursor + lotWidth / 2;
 
-        addBuilding(x, rowZ, buildingWidth, buildingDepth, height);
+        const nearWestAvenue = x < cx - BLOCK_X * 0.34;
+        const nearEastAvenue = x > cx + BLOCK_X * 0.34;
+        const cornerLot = nearWestAvenue || nearEastAvenue;
+        const midtownBand = j === 2 || j === 3;
+
+        let height = 1.5 + hash01(i * 7 + lot, j * 11 + row, 33) * 3.8;
+        if (cornerLot) height += 1.3 + hash01(i, j + lot, 34) * 2.4;
+        if (midtownBand) height += 0.8 + hash01(lot, i + j, 35) * 2.0;
+
+        const towerChance =
+          (cornerLot ? 0.23 : 0.06) +
+          (midtownBand ? 0.12 : 0);
+
+        const isTower = hash01(i * 19 + lot, j * 23 + row, 36) < towerChance;
+        if (isTower) {
+          height += 5.5 + hash01(i + lot, j + row, 37) * 8.5;
+        }
+
+        addNYCBuilding(
+          x,
+          rowZ,
+          buildingWidth,
+          buildingDepth,
+          height,
+          i * 1000 + j * 100 + (row + 1) * 20 + lot,
+          isTower ? "tower" : "streetwall"
+        );
+
         cursor += lotWidth;
         lot += 1;
       }
