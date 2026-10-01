@@ -324,6 +324,17 @@ function gridDistance(a, b) {
   return Math.abs(ax - bx) + Math.abs(ay - by);
 }
 
+function randomPickupNode(previousNode = null) {
+  const candidates = nodePositions
+    .map((_, index) => index)
+    .filter(index =>
+      index !== state.destination.coordinates &&
+      index !== previousNode &&
+      gridDistance(index, state.destination.coordinates) >= 3
+    );
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
 function randomDriverNode() {
   const candidates = nodePositions
     .map((_, index) => index)
@@ -537,8 +548,9 @@ function resetSimulation() {
   state.tripId = null;
   state.driver.availability = true;
   state.trip = { status: "idle", estimatedTime: 0, fare: 0, distance: 0 };
-  state.pickup.coordinates = PICKUP_NODE;
+  const previousPickup = state.pickup.coordinates;
   state.destination.coordinates = DESTINATION_NODE;
+  state.pickup.coordinates = randomPickupNode(previousPickup);
   state.rider.location = state.pickup.coordinates;
   state.rider.destination = state.destination.coordinates;
   state.route = { phase: "none", path: [], edgeIds: [], distance: 0, estimatedTravelTime: 0 };
@@ -550,11 +562,13 @@ function resetSimulation() {
 
   rider.visible = true;
   rider.position.copy(nodePositions[state.rider.location]).add(new THREE.Vector3(0.42, 0.36, 0.35));
+  pickupPin.position.copy(nodePositions[state.pickup.coordinates]);
+  destinationPin.position.copy(nodePositions[state.destination.coordinates]);
   setVehicleAtNode(newDriverNode);
 
   if (routeLine) routeLine.visible = false;
   updateRoadAppearance();
-  setMessage("Rider is waiting. Driver starting position has been randomized. Request a trip to begin.");
+  setMessage("Rider pickup and driver starting positions have both been randomized. Request a trip to begin.");
   updateUI();
 }
 
