@@ -367,7 +367,9 @@ function updateUI() {
   state.trip.status = state.status;
   ui.status.textContent = state.status === "pickup_arrived"
     ? "DRIVER ARRIVED"
-    : state.status.replaceAll("_", " ").toUpperCase();
+    : state.status === "in_progress"
+      ? "TO DESTINATION"
+      : state.status.replaceAll("_", " ").toUpperCase();
   ui.status.dataset.status = state.status;
   ui.tripId.textContent = state.tripId ?? "—";
   ui.eta.textContent = state.status === "idle" ? "—" : `${state.route.estimatedTravelTime} min`;
@@ -383,7 +385,7 @@ function updateUI() {
   ui.cancel.disabled = !["requested", "to_pickup", "pickup_arrived"].includes(state.status);
   ui.start.disabled = state.status !== "pickup_arrived";
   ui.move.disabled = !["to_pickup", "in_progress"].includes(state.status) || Boolean(tween);
-  ui.reroute.disabled = !["requested", "to_pickup", "pickup_arrived", "in_progress"].includes(state.status);
+  ui.reroute.disabled = !["requested", "to_pickup", "pickup_arrived", "in_progress"].includes(state.status) || Boolean(tween);
 
   if (routeLine) routeLine.visible = state.status !== "idle";
 }
