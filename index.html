@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Uber Ride — Semantic Environment Simulation</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="scene"></div>
+
+  <header class="hud title-card">
+    <div>
+      <p class="eyebrow">ENVIRONMENT SIMULATION</p>
+      <h1>Uber Ride Semantic Model</h1>
+      <p class="subtitle">Interactive rider · driver · vehicle · trip · route · road relationships</p>
+    </div>
+    <div id="trip-status" class="status-pill" data-status="idle">IDLE</div>
+  </header>
+
+  <aside class="hud info-card" aria-live="polite">
+    <div class="metric"><span>Trip</span><strong id="trip-id">—</strong></div>
+    <div class="metric"><span>Estimated time</span><strong id="eta">—</strong></div>
+    <div class="metric"><span>Fare</span><strong id="fare">—</strong></div>
+    <div class="metric"><span>Distance</span><strong id="distance">—</strong></div>
+    <div class="metric"><span>Driver available</span><strong id="availability">Yes</strong></div>
+    <div class="metric"><span>Vehicle capacity</span><strong>4</strong></div>
+    <div class="metric"><span>Route roads</span><strong id="road-count">—</strong></div>
+    <div class="metric"><span>Average traffic</span><strong id="traffic">—</strong></div>
+  </aside>
+
+  <section class="hud legend-card">
+    <span><i class="dot rider"></i> Rider</span>
+    <span><i class="dot driver"></i> Driver</span>
+    <span><i class="dot pickup"></i> Pickup</span>
+    <span><i class="dot destination"></i> Destination</span>
+    <span><i class="line route"></i> Active route</span>
+    <span><i class="line road"></i> Roads</span>
+  </section>
+
+  <footer class="hud toolbar" aria-label="Simulation controls">
+    <button id="request-btn">Request Trip</button>
+    <button id="accept-btn" disabled>Accept</button>
+    <button id="reject-btn" disabled>Reject</button>
+    <button id="cancel-btn" disabled>Cancel</button>
+    <button id="start-btn" disabled>Start Trip</button>
+    <button id="move-btn" disabled>Move Vehicle</button>
+    <button id="traffic-btn">Change Traffic</button>
+    <button id="reroute-btn" disabled>Recalculate Route</button>
+    <button id="reset-btn" class="secondary">Reset</button>
+  </footer>
+
+  <div id="message" class="hud message">Rider and driver are ready. Request a trip to begin.</div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
