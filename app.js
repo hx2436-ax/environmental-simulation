@@ -35,17 +35,19 @@ const GRID = 6;
 const STEP = WORLD / (GRID - 1);
 const ROAD_Y = 0.055;
 const NODE = (i, j) => j * GRID + i;
+const PICKUP_NODE = NODE(1, 1);
+const DESTINATION_NODE = NODE(4, 4);
 
 const state = {
   status: "idle",
   tripId: null,
-  rider: { location: NODE(1, 1), destination: NODE(4, 4) },
+  rider: { location: PICKUP_NODE, destination: DESTINATION_NODE },
   driver: { location: NODE(0, 5), availability: true },
   vehicle: { location: NODE(0, 5), capacity: 4 },
-  trip: { status: "idle", estimatedTime: 0, fare: 0 },
-  pickup: { coordinates: NODE(1, 1) },
-  destination: { coordinates: NODE(4, 4) },
-  route: { path: [], edgeIds: [], distance: 0, estimatedTravelTime: 0 },
+  trip: { status: "idle", estimatedTime: 0, fare: 0, distance: 0 },
+  pickup: { coordinates: PICKUP_NODE },
+  destination: { coordinates: DESTINATION_NODE },
+  route: { phase: "none", path: [], edgeIds: [], distance: 0, estimatedTravelTime: 0 },
   roadTraffic: new Map(),
   movementIndex: 0
 };
@@ -72,6 +74,11 @@ scene.add(ground);
 const cityGroup = new THREE.Group();
 scene.add(cityGroup);
 
+function hash01(i, j, salt = 0) {
+  const x = Math.sin(i * 127.1 + j * 311.7 + salt * 74.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 function addBuilding(x, z, w, d, h) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
@@ -87,10 +94,25 @@ for (let j = 0; j < GRID - 1; j++) {
   for (let i = 0; i < GRID - 1; i++) {
     const cx = -WORLD / 2 + (i + 0.5) * STEP;
     const cz = -WORLD / 2 + (j + 0.5) * STEP;
-    const h = 0.8 + ((i * 13 + j * 7) % 7) * 0.7;
-    addBuilding(cx, cz, STEP * 0.56, STEP * 0.56, h);
+    const w = STEP * (0.34 + hash01(i, j, 1) * 0.30);
+    const d = STEP * (0.34 + hash01(i, j, 2) * 0.30);
+    const h = 0.8 + hash01(i, j, 3) * 4.8;
+    const offsetX = (hash01(i, j, 4) - 0.5) * STEP * 0.12;
+    const offsetZ = (hash01(i, j, 5) - 0.5) * STEP * 0.12;
+    addBuilding(cx + offsetX, cz + offsetZ, w, d, h);
+
+    if (hash01(i, j, 6) > 0.62) {
+      const w2 = STEP * (0.18 + hash01(i, j, 7) * 0.18);
+      const d2 = STEP * (0.18 + hash01(i, j, 8) * 0.18);
+      const h2 = 0.65 + hash01(i, j, 9) * 2.8;
+      const sx = cx + (hash01(i, j, 10) > 0.5 ? 1 : -1) * STEP * 0.20;
+      const sz = cz + (hash01(i, j, 11) > 0.5 ? 1 : -1) * STEP * 0.20;
+      addBuilding(sx, sz, w2, d2, h2);
+    }
   }
 }
+
+const roadMaterial =
 
 const roadMaterial = new THREE.LineBasicMaterial({ color: 0x536071, transparent: true, opacity: 0.9 });
 const roadObjects = new Map();
@@ -184,10 +206,18 @@ function dijkstra(start, goal) {
 
 let routeLine = null;
 
-function rebuildRoute() {
-  const result = dijkstra(state.pickup.coordinates, state.destination.coordinates);
+function routeColor(phase) {
+  if (phase === "to_pickup") return 0x4cb7ff;
+  if (phase === "to_destination") return 0x59e391;
+  return 0x7bf6ff;
+}
+
+function buildActiveRoute(start, goal, phase, updateTripEstimate = false) {
+  const result = dijkstra(start, goal);
+  state.route.phase = phase;
   state.route.path = result.path;
   state.route.edgeIds = result.edgeIds;
+  state.movementIndex = 0;
 
   let distance = 0;
   let weighted = 0;
@@ -196,16 +226,21 @@ function rebuildRoute() {
     distance += edge.distance;
     weighted += edge.distance * state.roadTraffic.get(id);
   }
+
   state.route.distance = Math.round(distance);
-  state.route.estimatedTravelTime = Math.max(2, Math.round(weighted / 240));
-  state.trip.estimatedTime = state.route.estimatedTravelTime;
-  state.trip.fare = +(4.2 + distance * 0.0029 + state.trip.estimatedTime * 0.48).toFixed(2);
+  state.route.estimatedTravelTime = Math.max(1, Math.round(weighted / 240));
+
+  if (updateTripEstimate) {
+    state.trip.distance = state.route.distance;
+    state.trip.estimatedTime = state.route.estimatedTravelTime;
+    state.trip.fare = +(4.2 + distance * 0.0029 + state.trip.estimatedTime * 0.48).toFixed(2);
+  }
 
   if (routeLine) scene.remove(routeLine);
   const points = result.path.map(index => nodePositions[index].clone().setY(0.12));
   routeLine = new THREE.Line(
     new THREE.BufferGeometry().setFromPoints(points),
-    new THREE.LineBasicMaterial({ color: 0x7bf6ff })
+    new THREE.LineBasicMaterial({ color: routeColor(phase) })
   );
   routeLine.visible = state.status !== "idle";
   scene.add(routeLine);
@@ -213,6 +248,8 @@ function rebuildRoute() {
   updateRoadAppearance();
   updateUI();
 }
+
+function makePin
 
 function makePin(color, height = 1.25) {
   const g = new THREE.Group();
@@ -283,6 +320,25 @@ function setVehicleAtNode(index, nextIndex = null) {
   if (nextIndex !== null) orientVehicle(p, nodePositions[nextIndex]);
 }
 
+function gridDistance(a, b) {
+  const ax = a % GRID;
+  const ay = Math.floor(a / GRID);
+  const bx = b % GRID;
+  const by = Math.floor(b / GRID);
+  return Math.abs(ax - bx) + Math.abs(ay - by);
+}
+
+function randomDriverNode() {
+  const candidates = nodePositions
+    .map((_, index) => index)
+    .filter(index =>
+      index !== state.pickup.coordinates &&
+      index !== state.destination.coordinates &&
+      gridDistance(index, state.pickup.coordinates) >= 2
+    );
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
 const ui = {
   status: document.querySelector("#trip-status"),
   tripId: document.querySelector("#trip-id"),
@@ -313,10 +369,12 @@ function setMessage(text) { ui.message.textContent = text; }
 
 function updateUI() {
   state.trip.status = state.status;
-  ui.status.textContent = state.status.replace("_", " ").toUpperCase();
+  ui.status.textContent = state.status === "pickup_arrived"
+    ? "DRIVER ARRIVED"
+    : state.status.replaceAll("_", " ").toUpperCase();
   ui.status.dataset.status = state.status;
   ui.tripId.textContent = state.tripId ?? "—";
-  ui.eta.textContent = state.status === "idle" ? "—" : `${state.trip.estimatedTime} min`;
+  ui.eta.textContent = state.status === "idle" ? "—" : `${state.route.estimatedTravelTime} min`;
   ui.fare.textContent = state.status === "idle" ? "—" : `$${state.trip.fare.toFixed(2)}`;
   ui.distance.textContent = state.status === "idle" ? "—" : `${state.route.distance} m`;
   ui.availability.textContent = state.driver.availability ? "Yes" : "No";
@@ -326,32 +384,36 @@ function updateUI() {
   ui.request.disabled = state.status !== "idle" || !state.driver.availability;
   ui.accept.disabled = state.status !== "requested";
   ui.reject.disabled = state.status !== "requested";
-  ui.cancel.disabled = !["requested", "accepted"].includes(state.status);
-  ui.start.disabled = state.status !== "accepted";
-  ui.move.disabled = state.status !== "in_progress";
-  ui.reroute.disabled = !["requested", "accepted", "in_progress"].includes(state.status);
+  ui.cancel.disabled = !["requested", "to_pickup", "pickup_arrived"].includes(state.status);
+  ui.start.disabled = state.status !== "pickup_arrived";
+  ui.move.disabled = !["to_pickup", "in_progress"].includes(state.status) || Boolean(tween);
+  ui.reroute.disabled = !["requested", "to_pickup", "pickup_arrived", "in_progress"].includes(state.status);
 
   if (routeLine) routeLine.visible = state.status !== "idle";
 }
+
+function requestTrip
 
 function requestTrip() {
   if (state.status !== "idle" || !state.driver.availability) return;
   state.status = "requested";
   state.tripId = `UBR-${Math.floor(1000 + Math.random() * 9000)}`;
   state.driver.availability = false;
-  rebuildRoute();
-  setMessage("Trip requested. The rider is waiting for a driver response.");
+  buildActiveRoute(state.pickup.coordinates, state.destination.coordinates, "trip_preview", true);
+  setMessage("Trip requested. The route shown is the rider's trip preview. The driver may accept or reject.");
   updateUI();
 }
 
 function acceptTrip() {
   if (state.status !== "requested") return;
-  state.status = "accepted";
-  state.movementIndex = 0;
-  setVehicleAtNode(state.pickup.coordinates, state.route.path[1] ?? null);
-  setMessage("Driver accepted the trip and is at the pickup location.");
+  state.status = "to_pickup";
+  buildActiveRoute(state.vehicle.location, state.pickup.coordinates, "to_pickup", false);
+  setVehicleAtNode(state.vehicle.location, state.route.path[1] ?? null);
+  setMessage("Driver accepted. Move the vehicle along the blue route to pick up the rider.");
   updateUI();
 }
+
+function rejectTrip
 
 function rejectTrip() {
   if (state.status !== "requested") return;
@@ -362,30 +424,41 @@ function rejectTrip() {
 }
 
 function cancelTrip() {
-  if (!["requested", "accepted"].includes(state.status)) return;
+  if (!["requested", "to_pickup", "pickup_arrived"].includes(state.status)) return;
   state.status = "cancelled";
   state.driver.availability = true;
-  setMessage("The rider cancelled the trip before it started.");
+  setMessage("The rider cancelled the trip before departure.");
+  updateUI();
+}
+
+function arriveAtPickup() {
+  state.status = "pickup_arrived";
+  setVehicleAtNode(state.pickup.coordinates);
+  buildActiveRoute(state.pickup.coordinates, state.destination.coordinates, "to_destination", true);
+  setMessage("Driver reached the pickup location. Start Trip is now available.");
   updateUI();
 }
 
 function startTrip() {
-  if (state.status !== "accepted") return;
+  if (state.status !== "pickup_arrived") return;
   state.status = "in_progress";
   state.movementIndex = 0;
   setVehicleAtNode(state.route.path[0], state.route.path[1] ?? null);
   rider.visible = false;
-  setMessage("Trip started. Move the vehicle along the active route.");
+  setMessage("Passenger is onboard. Move the vehicle along the green route to the destination.");
   updateUI();
 }
 
 let tween = null;
 
+let tween = null;
+
 function moveVehicle() {
-  if (state.status !== "in_progress" || tween) return;
+  if (!["to_pickup", "in_progress"].includes(state.status) || tween) return;
 
   if (state.movementIndex >= state.route.path.length - 1) {
-    completeTrip();
+    if (state.status === "to_pickup") arriveAtPickup();
+    else completeTrip();
     return;
   }
 
@@ -398,7 +471,7 @@ function moveVehicle() {
   const start = performance.now();
   const duration = 470;
   tween = { from, to, start, duration, toIndex };
-  ui.move.disabled = true;
+  updateUI();
 }
 
 function updateTween(now) {
@@ -415,15 +488,19 @@ function updateTween(now) {
     tween = null;
 
     if (state.movementIndex >= state.route.path.length - 1) {
-      completeTrip();
+      if (state.status === "to_pickup") arriveAtPickup();
+      else completeTrip();
     } else {
       const next = state.route.path[state.movementIndex + 1];
       orientVehicle(nodePositions[state.vehicle.location], nodePositions[next]);
+      const leg = state.status === "to_pickup" ? "pickup" : "destination";
+      setMessage(`Vehicle moved toward the ${leg}: road node ${state.movementIndex + 1} of ${state.route.path.length}.`);
       updateUI();
-      setMessage(`Vehicle moved to road node ${state.movementIndex + 1} of ${state.route.path.length}.`);
     }
   }
 }
+
+function completeTrip
 
 function completeTrip() {
   state.status = "completed";
@@ -449,44 +526,51 @@ function randomizeTraffic() {
 }
 
 function recalculateRoute() {
-  if (!["requested", "accepted", "in_progress"].includes(state.status)) return;
+  if (!["requested", "to_pickup", "pickup_arrived", "in_progress"].includes(state.status)) return;
 
-  const start = state.status === "in_progress" ? state.vehicle.location : state.pickup.coordinates;
-  const originalPickup = state.pickup.coordinates;
-  state.pickup.coordinates = start;
-  rebuildRoute();
-  state.pickup.coordinates = originalPickup;
-  state.movementIndex = 0;
-
-  if (state.status === "in_progress") {
-    state.route.path[0] = state.vehicle.location;
+  if (state.status === "requested") {
+    buildActiveRoute(state.pickup.coordinates, state.destination.coordinates, "trip_preview", true);
+  } else if (state.status === "to_pickup") {
+    buildActiveRoute(state.vehicle.location, state.pickup.coordinates, "to_pickup", false);
+  } else {
+    buildActiveRoute(state.vehicle.location, state.destination.coordinates, "to_destination", true);
   }
-  setMessage("Route recalculated using current traffic levels.");
+
+  setVehicleAtNode(state.vehicle.location, state.route.path[1] ?? null);
+  setMessage("Route recalculated from the vehicle's current position using current traffic levels.");
   updateUI();
 }
+
+function resetSimulation
 
 function resetSimulation() {
   tween = null;
   state.status = "idle";
   state.tripId = null;
-  state.driver.location = NODE(0, 5);
   state.driver.availability = true;
-  state.vehicle.location = NODE(0, 5);
-  state.trip = { status: "idle", estimatedTime: 0, fare: 0 };
-  state.pickup.coordinates = NODE(1, 1);
-  state.destination.coordinates = NODE(4, 4);
+  state.trip = { status: "idle", estimatedTime: 0, fare: 0, distance: 0 };
+  state.pickup.coordinates = PICKUP_NODE;
+  state.destination.coordinates = DESTINATION_NODE;
   state.rider.location = state.pickup.coordinates;
   state.rider.destination = state.destination.coordinates;
-  state.route = { path: [], edgeIds: [], distance: 0, estimatedTravelTime: 0 };
+  state.route = { phase: "none", path: [], edgeIds: [], distance: 0, estimatedTravelTime: 0 };
   state.movementIndex = 0;
+
+  const newDriverNode = randomDriverNode();
+  state.driver.location = newDriverNode;
+  state.vehicle.location = newDriverNode;
+
   rider.visible = true;
   rider.position.copy(nodePositions[state.rider.location]).add(new THREE.Vector3(0.42, 0.36, 0.35));
-  setVehicleAtNode(state.vehicle.location);
+  setVehicleAtNode(newDriverNode);
+
   if (routeLine) routeLine.visible = false;
   updateRoadAppearance();
-  setMessage("Rider and driver are ready. Request a trip to begin.");
+  setMessage("Rider is waiting. Driver starting position has been randomized. Request a trip to begin.");
   updateUI();
 }
+
+ui.request.addEventListener
 
 ui.request.addEventListener("click", requestTrip);
 ui.accept.addEventListener("click", acceptTrip);
@@ -510,6 +594,5 @@ function animate(now) {
   controls.update();
   renderer.render(scene, camera);
 }
-rebuildRoute();
 resetSimulation();
 requestAnimationFrame(animate);
