@@ -112,8 +112,6 @@ for (let j = 0; j < GRID - 1; j++) {
   }
 }
 
-const roadMaterial =
-
 const roadMaterial = new THREE.LineBasicMaterial({ color: 0x536071, transparent: true, opacity: 0.9 });
 const roadObjects = new Map();
 const edges = [];
@@ -248,8 +246,6 @@ function buildActiveRoute(start, goal, phase, updateTripEstimate = false) {
   updateRoadAppearance();
   updateUI();
 }
-
-function makePin
 
 function makePin(color, height = 1.25) {
   const g = new THREE.Group();
@@ -392,8 +388,6 @@ function updateUI() {
   if (routeLine) routeLine.visible = state.status !== "idle";
 }
 
-function requestTrip
-
 function requestTrip() {
   if (state.status !== "idle" || !state.driver.availability) return;
   state.status = "requested";
@@ -412,8 +406,6 @@ function acceptTrip() {
   setMessage("Driver accepted. Move the vehicle along the blue route to pick up the rider.");
   updateUI();
 }
-
-function rejectTrip
 
 function rejectTrip() {
   if (state.status !== "requested") return;
@@ -448,8 +440,6 @@ function startTrip() {
   setMessage("Passenger is onboard. Move the vehicle along the green route to the destination.");
   updateUI();
 }
-
-let tween = null;
 
 let tween = null;
 
@@ -500,8 +490,6 @@ function updateTween(now) {
   }
 }
 
-function completeTrip
-
 function completeTrip() {
   state.status = "completed";
   state.driver.availability = true;
@@ -541,8 +529,6 @@ function recalculateRoute() {
   updateUI();
 }
 
-function resetSimulation
-
 function resetSimulation() {
   tween = null;
   state.status = "idle";
@@ -569,8 +555,6 @@ function resetSimulation() {
   setMessage("Rider is waiting. Driver starting position has been randomized. Request a trip to begin.");
   updateUI();
 }
-
-ui.request.addEventListener
 
 ui.request.addEventListener("click", requestTrip);
 ui.accept.addEventListener("click", acceptTrip);
