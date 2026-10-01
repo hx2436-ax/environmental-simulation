@@ -4,10 +4,10 @@ import { OrbitControls } from "https://unpkg.com/three@0.164.1/examples/jsm/cont
 const container = document.querySelector("#scene");
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x090c12);
-scene.fog = new THREE.Fog(0x090c12, 26, 70);
+scene.fog = new THREE.Fog(0x090c12, 34, 92);
 
-const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 120);
-camera.position.set(15, 19, 19);
+const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 140);
+camera.position.set(28, 25, 23);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -21,7 +21,7 @@ controls.target.set(0, 0, 0);
 controls.enableDamping = true;
 controls.maxPolarAngle = Math.PI * 0.47;
 controls.minDistance = 10;
-controls.maxDistance = 48;
+controls.maxDistance = 68;
 
 scene.add(new THREE.HemisphereLight(0xb9d6ff, 0x151619, 2.5));
 const sun = new THREE.DirectionalLight(0xffffff, 2.1);
@@ -30,9 +30,18 @@ sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 scene.add(sun);
 
-const WORLD = 24;
 const GRID = 6;
-const STEP = WORLD / (GRID - 1);
+
+// Stylized Manhattan proportions.
+// Typical Manhattan blocks are roughly 800 ft long x 200 ft wide.
+// The scaled centerline spacing below also leaves room for wider avenues
+// and narrower cross streets.
+const STEP_X = 8.8;
+const STEP_Z = 2.5;
+const WORLD_X = STEP_X * (GRID - 1);
+const WORLD_Z = STEP_Z * (GRID - 1);
+const AVENUE_WIDTH = 1.0;
+const STREET_WIDTH = 0.6;
 const ROAD_Y = 0.055;
 const NODE = (i, j) => j * GRID + i;
 const PICKUP_NODE = NODE(1, 1);
@@ -56,15 +65,15 @@ const nodePositions = [];
 for (let j = 0; j < GRID; j++) {
   for (let i = 0; i < GRID; i++) {
     nodePositions.push(new THREE.Vector3(
-      -WORLD / 2 + i * STEP,
+      -WORLD_X / 2 + i * STEP_X,
       ROAD_Y,
-      -WORLD / 2 + j * STEP
+      -WORLD_Z / 2 + j * STEP_Z
     ));
   }
 }
 
 const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(80, 80),
+  new THREE.PlaneGeometry(92, 56),
   new THREE.MeshStandardMaterial({ color: 0x10151d, roughness: 0.97 })
 );
 ground.rotation.x = -Math.PI / 2;
@@ -90,24 +99,41 @@ function addBuilding(x, z, w, d, h) {
   cityGroup.add(mesh);
 }
 
+const BLOCK_X = STEP_X - AVENUE_WIDTH;
+const BLOCK_Z = STEP_Z - STREET_WIDTH;
+
 for (let j = 0; j < GRID - 1; j++) {
   for (let i = 0; i < GRID - 1; i++) {
-    const cx = -WORLD / 2 + (i + 0.5) * STEP;
-    const cz = -WORLD / 2 + (j + 0.5) * STEP;
-    const w = STEP * (0.34 + hash01(i, j, 1) * 0.30);
-    const d = STEP * (0.34 + hash01(i, j, 2) * 0.30);
-    const h = 0.8 + hash01(i, j, 3) * 4.8;
-    const offsetX = (hash01(i, j, 4) - 0.5) * STEP * 0.12;
-    const offsetZ = (hash01(i, j, 5) - 0.5) * STEP * 0.12;
-    addBuilding(cx + offsetX, cz + offsetZ, w, d, h);
+    const cx = -WORLD_X / 2 + (i + 0.5) * STEP_X;
+    const cz = -WORLD_Z / 2 + (j + 0.5) * STEP_Z;
 
-    if (hash01(i, j, 6) > 0.62) {
-      const w2 = STEP * (0.18 + hash01(i, j, 7) * 0.18);
-      const d2 = STEP * (0.18 + hash01(i, j, 8) * 0.18);
-      const h2 = 0.65 + hash01(i, j, 9) * 2.8;
-      const sx = cx + (hash01(i, j, 10) > 0.5 ? 1 : -1) * STEP * 0.20;
-      const sz = cz + (hash01(i, j, 11) > 0.5 ? 1 : -1) * STEP * 0.20;
-      addBuilding(sx, sz, w2, d2, h2);
+    // Two rows of narrow lots evoke Manhattan's 25 x 100 ft parcel logic,
+    // while keeping the simulation light enough to render interactively.
+    const rows = [-1, 1];
+    for (const row of rows) {
+      const rowDepth = BLOCK_Z * (0.36 + hash01(i, j, 20 + row) * 0.08);
+      const rowZ = cz + row * BLOCK_Z * 0.26;
+      let cursor = cx - BLOCK_X / 2 + 0.18;
+      const rightEdge = cx + BLOCK_X / 2 - 0.18;
+      let lot = 0;
+
+      while (cursor < rightEdge - 0.35 && lot < 9) {
+        const lotWidth = Math.min(
+          0.62 + hash01(i * 13 + lot, j * 17 + row, 30) * 0.72,
+          rightEdge - cursor
+        );
+        if (lotWidth < 0.28) break;
+
+        const gap = 0.07 + hash01(i, j + lot, 31) * 0.09;
+        const buildingWidth = Math.max(0.36, lotWidth - gap);
+        const buildingDepth = rowDepth * (0.78 + hash01(i + lot, j, 32) * 0.20);
+        const height = 1.0 + hash01(i * 7 + lot, j * 11 + row, 33) * 6.4;
+        const x = cursor + lotWidth / 2;
+
+        addBuilding(x, rowZ, buildingWidth, buildingDepth, height);
+        cursor += lotWidth;
+        lot += 1;
+      }
     }
   }
 }
