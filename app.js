@@ -116,7 +116,6 @@ function addBoxMass(x, y, z, w, h, d, material) {
   mesh.position.set(x, y + h / 2, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-  mesh.userData.hoverName = "Building";
   cityGroup.add(mesh);
   return mesh;
 }
@@ -147,7 +146,6 @@ function addRooftopElement(x, z, baseY, w, d, seed) {
     );
     tank.position.set(x, baseY + tankH / 2 + 0.08, z);
     tank.castShadow = true;
-    tank.userData.hoverName = "Rooftop water tank";
     cityGroup.add(tank);
 
     const legs = new THREE.Mesh(
@@ -155,7 +153,6 @@ function addRooftopElement(x, z, baseY, w, d, seed) {
       roofMaterial
     );
     legs.position.set(x, baseY + 0.08, z);
-    legs.userData.hoverName = "Rooftop structure";
     cityGroup.add(legs);
   }
 }
@@ -337,6 +334,55 @@ function makeOffsetStrip(start, end, width, color, y = 0.07, opacity = 1, offset
 
   return makeStrip(shiftedStart, shiftedEnd, width, color, y, opacity);
 }
+
+const locationGridGroup = new THREE.Group();
+scene.add(locationGridGroup);
+
+function addLocationGridUnderlayer() {
+  const gridMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.72,
+    depthTest: true,
+    depthWrite: false
+  });
+
+  const marginX = 0.55;
+  const marginZ = 0.55;
+
+  for (let i = 0; i < GRID; i++) {
+    const x = nodePositions[NODE(i, 0)].x;
+    const start = new THREE.Vector3(x, 0.024, -WORLD_Z / 2 - marginZ);
+    const end = new THREE.Vector3(x, 0.024, WORLD_Z / 2 + marginZ);
+    const strip = makeStrip(start, end, AVENUE_WIDTH + 0.18, 0xffffff, 0.024, 0.72);
+    strip.material.dispose();
+    strip.material = gridMaterial.clone();
+    strip.renderOrder = 1;
+    locationGridGroup.add(strip);
+  }
+
+  for (let j = 0; j < GRID; j++) {
+    const z = nodePositions[NODE(0, j)].z;
+    const start = new THREE.Vector3(-WORLD_X / 2 - marginX, 0.026, z);
+    const end = new THREE.Vector3(WORLD_X / 2 + marginX, 0.026, z);
+    const strip = makeStrip(start, end, STREET_WIDTH + 0.18, 0xffffff, 0.026, 0.72);
+    strip.material.dispose();
+    strip.material = gridMaterial.clone();
+    strip.renderOrder = 1;
+    locationGridGroup.add(strip);
+  }
+
+  const nodeGeometry = new THREE.RingGeometry(0.12, 0.19, 24);
+  for (const p of nodePositions) {
+    const marker = new THREE.Mesh(nodeGeometry, gridMaterial.clone());
+    marker.rotation.x = -Math.PI / 2;
+    marker.position.set(p.x, 0.105, p.z);
+    marker.renderOrder = 8;
+    locationGridGroup.add(marker);
+  }
+}
+
+addLocationGridUnderlayer();
 
 function addRoad(a, b) {
   const id = edgeId(a, b);
@@ -1153,11 +1199,11 @@ function hoverInfoFromHit(hit) {
     };
   }
 
-  if (object.userData?.hoverName) {
+  if (object.userData?.isRoadLabel && object.userData?.hoverName) {
     const p = hit.point;
     return {
       name: object.userData.hoverName,
-      detail: `World x ${p.x.toFixed(1)}, y ${p.y.toFixed(1)}, z ${p.z.toFixed(1)}`
+      detail: `Road label · x ${p.x.toFixed(1)}, z ${p.z.toFixed(1)}`
     };
   }
 
@@ -1171,25 +1217,36 @@ function setHoverPointer(event) {
   locationRaycaster.setFromCamera(locationPointer, camera);
 }
 
+function isInsideGroup(object, group) {
+  let current = object;
+  while (current) {
+    if (current === group) return true;
+    current = current.parent;
+  }
+  return false;
+}
+
 renderer.domElement.addEventListener("pointermove", event => {
   if (!ui.hoverTooltip) return;
   setHoverPointer(event);
 
-  let hit = locationRaycaster.intersectObjects(semanticHoverTargets, true)[0];
+  const hoverSceneTargets = [
+    ...semanticHoverTargets,
+    ...cityGroup.children,
+    ...roadLabelGroup.children,
+    ...nodeHoverTargets
+  ];
+  const hits = locationRaycaster.intersectObjects(hoverSceneTargets, true);
 
-  if (!hit) {
-    hit = locationRaycaster.intersectObjects(cityGroup.children, true)[0];
+  if (!hits.length) {
+    ui.hoverTooltip.style.display = "none";
+    renderer.domElement.style.cursor = "";
+    return;
   }
 
-  if (!hit) {
-    hit = locationRaycaster.intersectObjects(roadLabelGroup.children, true)[0];
-  }
+  const hit = hits[0];
 
-  if (!hit) {
-    hit = locationRaycaster.intersectObjects(nodeHoverTargets, true)[0];
-  }
-
-  if (!hit) {
+  if (isInsideGroup(hit.object, cityGroup)) {
     ui.hoverTooltip.style.display = "none";
     renderer.domElement.style.cursor = "";
     return;
