@@ -29,6 +29,60 @@
     <div class="metric"><span>Average traffic</span><strong id="traffic">—</strong></div>
   </aside>
 
+  <aside class="hud location-card" aria-label="Location workshop inspector">
+    <div class="location-header">
+      <div>
+        <p class="location-eyebrow">LOCATION WORKSHOP</p>
+        <strong>Location Inspector</strong>
+      </div>
+      <span id="location-selected">Rider</span>
+    </div>
+
+    <div class="location-section">
+      <p class="location-label">Machine Location</p>
+      <div class="location-grid">
+        <span>Node</span><strong id="loc-node">—</strong>
+        <span>Grid</span><strong id="loc-grid">—</strong>
+        <span>World</span><strong id="loc-world">—</strong>
+        <span>Screen</span><strong id="loc-screen">—</strong>
+      </div>
+    </div>
+
+    <div class="location-section">
+      <p class="location-label">Human Location</p>
+      <p id="loc-human" class="location-copy">Click a rider, vehicle, marker, or intersection.</p>
+    </div>
+
+    <div class="location-section">
+      <div class="reference-row">
+        <p class="location-label">Frame of Reference</p>
+        <select id="reference-frame" aria-label="Location frame of reference">
+          <option value="rider">Rider</option>
+          <option value="driver">Driver</option>
+          <option value="pickup">Pickup</option>
+          <option value="destination">Destination</option>
+        </select>
+      </div>
+      <p id="loc-relative" class="location-copy">—</p>
+    </div>
+
+    <div class="location-section">
+      <p class="location-label">Occupying This Location</p>
+      <div id="loc-occupants" class="occupant-list"><span>—</span></div>
+    </div>
+
+    <form id="location-query-form" class="location-query">
+      <label for="location-query">Describe a location</label>
+      <div>
+        <input id="location-query" type="text" placeholder="one block east of rider" autocomplete="off" />
+        <button type="submit">Resolve</button>
+      </div>
+      <p id="location-query-result">Try “2 blocks north of pickup” or “nearest intersection to driver”.</p>
+    </form>
+
+    <p class="location-hint">Tip: click directly on the simulation to inspect a location.</p>
+  </aside>
+
   <section class="hud legend-card">
     <span><i class="dot rider"></i> Rider</span>
     <span><i class="dot driver"></i> Driver</span>
