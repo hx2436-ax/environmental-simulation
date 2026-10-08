@@ -116,6 +116,7 @@ function addBoxMass(x, y, z, w, h, d, material) {
   mesh.position.set(x, y + h / 2, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  mesh.userData.hoverName = "Building";
   cityGroup.add(mesh);
   return mesh;
 }
@@ -146,6 +147,7 @@ function addRooftopElement(x, z, baseY, w, d, seed) {
     );
     tank.position.set(x, baseY + tankH / 2 + 0.08, z);
     tank.castShadow = true;
+    tank.userData.hoverName = "Rooftop water tank";
     cityGroup.add(tank);
 
     const legs = new THREE.Mesh(
@@ -153,6 +155,7 @@ function addRooftopElement(x, z, baseY, w, d, seed) {
       roofMaterial
     );
     legs.position.set(x, baseY + 0.08, z);
+    legs.userData.hoverName = "Rooftop structure";
     cityGroup.add(legs);
   }
 }
@@ -564,6 +567,37 @@ vehicle.add(driverMarker);
 vehicle.position.copy(nodePositions[state.vehicle.location]);
 scene.add(vehicle);
 
+function addGhostOverlay(root, opacity = 0.20, scale = 1.035) {
+  const sourceMeshes = [];
+  root.traverse(obj => {
+    if (obj.isMesh && !obj.userData.isGhostOverlay) sourceMeshes.push(obj);
+  });
+
+  for (const source of sourceMeshes) {
+    const sourceColor = source.material?.color?.getHex?.() ?? 0xffffff;
+    const ghost = new THREE.Mesh(
+      source.geometry,
+      new THREE.MeshBasicMaterial({
+        color: sourceColor,
+        transparent: true,
+        opacity,
+        depthTest: false,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      })
+    );
+    ghost.scale.setScalar(scale);
+    ghost.renderOrder = 60;
+    ghost.userData.isGhostOverlay = true;
+    source.add(ghost);
+  }
+}
+
+addGhostOverlay(rider, 0.20, 1.05);
+addGhostOverlay(driverMarker, 0.26, 1.16);
+addGhostOverlay(pickupPin, 0.18, 1.05);
+addGhostOverlay(destinationPin, 0.18, 1.05);
+
 function orientVehicle(from, to) {
   if (!from || !to) return;
   const dx = to.x - from.x;
@@ -632,6 +666,10 @@ const ui = {
   locationQueryForm: document.querySelector("#location-query-form"),
   locationQuery: document.querySelector("#location-query"),
   locationQueryResult: document.querySelector("#location-query-result"),
+  compassRose: document.querySelector("#compass-rose"),
+  compassHeading: document.querySelector("#compass-heading"),
+  compassBearing: document.querySelector("#compass-bearing"),
+  hoverTooltip: document.querySelector("#hover-tooltip"),
   message: document.querySelector("#message"),
   request: document.querySelector("#request-btn"),
   accept: document.querySelector("#accept-btn"),
@@ -646,6 +684,102 @@ const ui = {
 
 const AVENUE_NAMES = Array.from({ length: GRID }, (_, i) => `Avenue ${i + 1}`);
 const STREET_NAMES = Array.from({ length: GRID }, (_, j) => `Street ${20 + j}`);
+
+const roadLabelGroup = new THREE.Group();
+scene.add(roadLabelGroup);
+
+function makeRoadLabel(text, x, z, angle = 0, width = 2.8) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(255, 252, 255, .88)";
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(8, 18, 496, 92, 24);
+  } else {
+    ctx.rect(8, 18, 496, 92);
+  }
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(118, 93, 150, .20)";
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.fillStyle = "#54445f";
+  ctx.font = "800 42px Inter, Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 256, 64);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, width * 0.25),
+    new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    })
+  );
+  mesh.position.set(x, 0.18, z);
+  mesh.rotation.set(-Math.PI / 2, 0, angle);
+  mesh.renderOrder = 35;
+  mesh.userData.hoverName = text;
+  mesh.userData.isRoadLabel = true;
+  roadLabelGroup.add(mesh);
+  return mesh;
+}
+
+for (let i = 0; i < GRID; i++) {
+  const x = nodePositions[NODE(i, 0)].x;
+  makeRoadLabel(
+    AVENUE_NAMES[i],
+    x,
+    WORLD_Z / 2 + 1.15,
+    Math.PI / 2,
+    2.55
+  );
+}
+
+for (let j = 0; j < GRID; j++) {
+  const z = nodePositions[NODE(0, j)].z;
+  makeRoadLabel(
+    STREET_NAMES[j],
+    -WORLD_X / 2 - 1.8,
+    z,
+    0,
+    2.55
+  );
+}
+
+function compassBearing(heading) {
+  const directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  return directions[Math.round(heading / 45) % 8];
+}
+
+function updateCompass() {
+  if (!ui.compassRose) return;
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  dir.y = 0;
+
+  if (dir.lengthSq() < 0.0001) return;
+  dir.normalize();
+
+  let heading = THREE.MathUtils.radToDeg(Math.atan2(dir.x, dir.z));
+  heading = (heading + 360) % 360;
+
+  ui.compassRose.style.setProperty("--heading", `${-heading}deg`);
+  ui.compassHeading.textContent = `${String(Math.round(heading)).padStart(3, "0")}°`;
+  ui.compassBearing.textContent = compassBearing(heading);
+}
 
 let selectedLocation = { kind: "rider", nodeIndex: state.rider.location, label: "Rider" };
 
@@ -887,6 +1021,8 @@ function resolveLocationDescription(raw) {
 }
 
 const selectableTargets = [];
+const semanticHoverTargets = [];
+const nodeHoverTargets = [];
 
 function markSelectable(object, kind, nodeIndex = null) {
   object.traverse(child => {
@@ -894,6 +1030,7 @@ function markSelectable(object, kind, nodeIndex = null) {
     if (nodeIndex !== null) child.userData.nodeIndex = nodeIndex;
   });
   selectableTargets.push(object);
+  semanticHoverTargets.push(object);
 }
 
 markSelectable(rider, "rider");
@@ -916,6 +1053,7 @@ for (let index = 0; index < nodePositions.length; index++) {
   hit.userData.nodeIndex = index;
   scene.add(hit);
   selectableTargets.push(hit);
+  nodeHoverTargets.push(hit);
 }
 
 const locationRaycaster = new THREE.Raycaster();
@@ -952,6 +1090,96 @@ renderer.domElement.addEventListener("pointerup", event => {
   }
 });
 
+function metadataObject(object) {
+  let current = object;
+  while (current) {
+    if (current.userData?.locationKind || current.userData?.hoverName) return current;
+    current = current.parent;
+  }
+  return object;
+}
+
+function hoverInfoFromHit(hit) {
+  const object = metadataObject(hit.object);
+  const kind = object.userData?.locationKind;
+
+  if (kind) {
+    const nodeIndex = kind === "node"
+      ? object.userData.nodeIndex
+      : nodeForKind(kind);
+    const grid = nodeGrid(nodeIndex);
+    const p = nodePositions[nodeIndex];
+    const name = kind === "node"
+      ? nodeHumanName(nodeIndex)
+      : labelForKind(kind);
+
+    return {
+      name,
+      detail: `Node N${nodeIndex} · Grid (${grid.i}, ${grid.j}) · x ${p.x.toFixed(1)}, z ${p.z.toFixed(1)}`
+    };
+  }
+
+  if (object.userData?.hoverName) {
+    const p = hit.point;
+    return {
+      name: object.userData.hoverName,
+      detail: `World x ${p.x.toFixed(1)}, y ${p.y.toFixed(1)}, z ${p.z.toFixed(1)}`
+    };
+  }
+
+  return null;
+}
+
+function setHoverPointer(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  locationPointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  locationPointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  locationRaycaster.setFromCamera(locationPointer, camera);
+}
+
+renderer.domElement.addEventListener("pointermove", event => {
+  if (!ui.hoverTooltip) return;
+  setHoverPointer(event);
+
+  let hit = locationRaycaster.intersectObjects(semanticHoverTargets, true)[0];
+
+  if (!hit) {
+    hit = locationRaycaster.intersectObjects(cityGroup.children, true)[0];
+  }
+
+  if (!hit) {
+    hit = locationRaycaster.intersectObjects(roadLabelGroup.children, true)[0];
+  }
+
+  if (!hit) {
+    hit = locationRaycaster.intersectObjects(nodeHoverTargets, true)[0];
+  }
+
+  if (!hit) {
+    ui.hoverTooltip.style.display = "none";
+    renderer.domElement.style.cursor = "";
+    return;
+  }
+
+  const info = hoverInfoFromHit(hit);
+  if (!info) {
+    ui.hoverTooltip.style.display = "none";
+    renderer.domElement.style.cursor = "";
+    return;
+  }
+
+  ui.hoverTooltip.innerHTML = `<strong>${info.name}</strong><span>${info.detail}</span>`;
+  ui.hoverTooltip.style.left = `${event.clientX}px`;
+  ui.hoverTooltip.style.top = `${event.clientY}px`;
+  ui.hoverTooltip.style.display = "block";
+  renderer.domElement.style.cursor = "pointer";
+});
+
+renderer.domElement.addEventListener("pointerleave", () => {
+  if (ui.hoverTooltip) ui.hoverTooltip.style.display = "none";
+  renderer.domElement.style.cursor = "";
+});
+
 if (ui.referenceFrame) {
   ui.referenceFrame.addEventListener("change", updateLocationInspector);
 }
@@ -976,7 +1204,10 @@ if (ui.locationQueryForm) {
   });
 }
 
-controls.addEventListener("change", updateLocationInspector);
+controls.addEventListener("change", () => {
+  updateLocationInspector();
+  updateCompass();
+});
 
 function routeMapTrafficColor(level) {
   if (level < 1.65) return "#59c982";
@@ -1320,7 +1551,9 @@ function animate(now) {
   requestAnimationFrame(animate);
   updateTween(now);
   controls.update();
+  updateCompass();
   renderer.render(scene, camera);
 }
 resetSimulation();
+updateCompass();
 requestAnimationFrame(animate);
