@@ -34,9 +34,25 @@
     <span><i class="dot driver"></i> Driver</span>
     <span><i class="dot pickup"></i> Pickup</span>
     <span><i class="dot destination"></i> Destination</span>
-    <span><i class="line route"></i> Active route</span>
-    <span><i class="line road"></i> Roads</span>
+    <span><i class="line route"></i> Route guide</span>
+    <span><i class="line road"></i> Traffic</span>
   </section>
+
+  <aside class="hud route-map-card" aria-label="Route traffic overview">
+    <div class="route-map-header">
+      <div>
+        <p class="route-map-eyebrow">ROUTE OVERVIEW</p>
+        <strong>Full Trip Traffic</strong>
+      </div>
+      <span id="route-map-phase">No route</span>
+    </div>
+    <canvas id="route-map" width="560" height="320"></canvas>
+    <div class="route-map-legend">
+      <span><i class="traffic-key good"></i>Light</span>
+      <span><i class="traffic-key medium"></i>Medium</span>
+      <span><i class="traffic-key heavy"></i>Heavy</span>
+    </div>
+  </aside>
 
   <footer class="hud toolbar" aria-label="Simulation controls">
     <button id="request-btn">Request Ride ♡</button>
