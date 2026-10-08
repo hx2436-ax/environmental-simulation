@@ -567,8 +567,11 @@ vehicle.add(driverMarker);
 vehicle.position.copy(nodePositions[state.vehicle.location]);
 scene.add(vehicle);
 
+const ghostTargets = [];
+
 function addGhostOverlay(root, opacity = 0.20, scale = 1.035) {
   const sourceMeshes = [];
+  const ghosts = [];
   root.traverse(obj => {
     if (obj.isMesh && !obj.userData.isGhostOverlay) sourceMeshes.push(obj);
   });
@@ -580,7 +583,7 @@ function addGhostOverlay(root, opacity = 0.20, scale = 1.035) {
       new THREE.MeshBasicMaterial({
         color: sourceColor,
         transparent: true,
-        opacity,
+        opacity: 0,
         depthTest: false,
         depthWrite: false,
         side: THREE.DoubleSide
@@ -589,7 +592,38 @@ function addGhostOverlay(root, opacity = 0.20, scale = 1.035) {
     ghost.scale.setScalar(scale);
     ghost.renderOrder = 60;
     ghost.userData.isGhostOverlay = true;
+    ghost.userData.ghostOpacity = opacity;
     source.add(ghost);
+    ghosts.push(ghost);
+  }
+
+  ghostTargets.push({ root, ghosts, opacity });
+}
+
+const ghostRaycaster = new THREE.Raycaster();
+const ghostDirection = new THREE.Vector3();
+const ghostWorldPosition = new THREE.Vector3();
+
+function updateGhostVisibility() {
+  for (const target of ghostTargets) {
+    target.root.getWorldPosition(ghostWorldPosition);
+    ghostDirection.subVectors(ghostWorldPosition, camera.position);
+    const distance = ghostDirection.length();
+
+    if (distance < 0.2 || !target.root.visible) {
+      for (const ghost of target.ghosts) ghost.material.opacity = 0;
+      continue;
+    }
+
+    ghostDirection.normalize();
+    ghostRaycaster.set(camera.position, ghostDirection);
+    ghostRaycaster.near = 0.05;
+    ghostRaycaster.far = Math.max(0.05, distance - 0.12);
+
+    const occluded = ghostRaycaster.intersectObjects(cityGroup.children, true).length > 0;
+    for (const ghost of target.ghosts) {
+      ghost.material.opacity = occluded ? target.opacity : 0;
+    }
   }
 }
 
@@ -1552,6 +1586,7 @@ function animate(now) {
   updateTween(now);
   controls.update();
   updateCompass();
+  updateGhostVisibility();
   renderer.render(scene, camera);
 }
 resetSimulation();
