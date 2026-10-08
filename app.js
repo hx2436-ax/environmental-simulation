@@ -318,6 +318,23 @@ function makeStrip(start, end, width, color, y = 0.07, opacity = 1) {
   return mesh;
 }
 
+function makeOffsetStrip(start, end, width, color, y = 0.07, opacity = 1, offset = 0) {
+  const dx = end.x - start.x;
+  const dz = end.z - start.z;
+  const length = Math.hypot(dx, dz) || 1;
+  const nx = -dz / length;
+  const nz = dx / length;
+
+  const shiftedStart = start.clone();
+  const shiftedEnd = end.clone();
+  shiftedStart.x += nx * offset;
+  shiftedStart.z += nz * offset;
+  shiftedEnd.x += nx * offset;
+  shiftedEnd.z += nz * offset;
+
+  return makeStrip(shiftedStart, shiftedEnd, width, color, y, opacity);
+}
+
 function addRoad(a, b) {
   const id = edgeId(a, b);
   const start = nodePositions[a];
@@ -370,13 +387,6 @@ function updateRoadAppearance() {
     road.traffic.material.color.copy(trafficColor(level));
     setStripWidth(road.traffic, trafficWidth(level));
     road.traffic.material.opacity = 0.98;
-  }
-
-  for (const id of state.route.edgeIds) {
-    const road = roadObjects.get(id);
-    if (road) {
-      setStripWidth(road.traffic, trafficWidth(state.roadTraffic.get(id)) + 0.06);
-    }
   }
 }
 
@@ -468,17 +478,30 @@ function buildActiveRoute(start, goal, phase, updateTripEstimate = false) {
   routeLine = new THREE.Group();
   const routePoints = result.path.map(index => nodePositions[index]);
   for (let i = 0; i < routePoints.length - 1; i++) {
-    const segment = makeStrip(
+    const halo = makeOffsetStrip(
       routePoints[i],
       routePoints[i + 1],
-      0.18,
+      0.115,
+      0xfffbff,
+      0.15,
+      0.96,
+      0.22
+    );
+    halo.material.depthTest = false;
+    halo.renderOrder = 20;
+
+    const segment = makeOffsetStrip(
+      routePoints[i],
+      routePoints[i + 1],
+      0.055,
       routeColor(phase),
-      0.145,
-      1
+      0.16,
+      1,
+      0.22
     );
     segment.material.depthTest = false;
-    segment.renderOrder = 20;
-    routeLine.add(segment);
+    segment.renderOrder = 21;
+    routeLine.add(halo, segment);
   }
   routeLine.visible = state.status !== "idle";
   scene.add(routeLine);
@@ -595,6 +618,8 @@ const ui = {
   availability: document.querySelector("#availability"),
   roadCount: document.querySelector("#road-count"),
   traffic: document.querySelector("#traffic"),
+  routeMap: document.querySelector("#route-map"),
+  routeMapPhase: document.querySelector("#route-map-phase"),
   message: document.querySelector("#message"),
   request: document.querySelector("#request-btn"),
   accept: document.querySelector("#accept-btn"),
@@ -606,6 +631,117 @@ const ui = {
   reroute: document.querySelector("#reroute-btn"),
   reset: document.querySelector("#reset-btn")
 };
+
+function routeMapTrafficColor(level) {
+  if (level < 1.65) return "#59c982";
+  if (level < 2.35) return "#e9b949";
+  return "#e56b75";
+}
+
+function routeMapPhaseLabel() {
+  if (state.route.phase === "to_pickup") return "To pickup";
+  if (state.route.phase === "to_destination") return "To destination";
+  if (state.route.phase === "trip_preview") return "Trip preview";
+  return "No route";
+}
+
+function drawRouteMap() {
+  if (!ui.routeMap) return;
+
+  const canvas = ui.routeMap;
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width;
+  const h = canvas.height;
+  const pad = 28;
+  const scale = Math.min(
+    (w - pad * 2) / WORLD_X,
+    (h - pad * 2) / WORLD_Z
+  );
+
+  const toCanvas = (p) => ({
+    x: w / 2 + p.x * scale,
+    y: h / 2 + p.z * scale
+  });
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Full street network in the background.
+  for (const edge of edges) {
+    const a = toCanvas(nodePositions[edge.a]);
+    const b = toCanvas(nodePositions[edge.b]);
+    const road = roadObjects.get(edge.id);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = "rgba(151, 143, 164, .34)";
+    ctx.lineWidth = road?.isAvenue ? 7 : 4;
+    ctx.stroke();
+  }
+
+  // The selected route is colored segment-by-segment by traffic condition.
+  if (state.route.edgeIds.length) {
+    for (const id of state.route.edgeIds) {
+      const edge = edges.find(e => e.id === id);
+      if (!edge) continue;
+      const a = toCanvas(nodePositions[edge.a]);
+      const b = toCanvas(nodePositions[edge.b]);
+
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = "rgba(255,255,255,.92)";
+      ctx.lineWidth = 17;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = routeMapTrafficColor(state.roadTraffic.get(id));
+      ctx.lineWidth = 10;
+      ctx.stroke();
+    }
+
+    const start = toCanvas(nodePositions[state.route.path[0]]);
+    const end = toCanvas(nodePositions[state.route.path[state.route.path.length - 1]]);
+
+    const marker = (point, label, fill) => {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 11, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#fff";
+      ctx.stroke();
+      ctx.fillStyle = "#4d405c";
+      ctx.font = "800 10px Inter, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, point.x, point.y + .5);
+    };
+
+    marker(start, "A", "#d9cdfd");
+    marker(end, "B", "#ffd2b1");
+
+    const vehiclePoint = toCanvas(nodePositions[state.vehicle.location]);
+    ctx.beginPath();
+    ctx.arc(vehiclePoint.x, vehiclePoint.y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = "#ff79b5";
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#fff";
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = "#8f829c";
+    ctx.font = "700 18px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Request a ride to see route traffic", w / 2, h / 2);
+  }
+
+  if (ui.routeMapPhase) ui.routeMapPhase.textContent = routeMapPhaseLabel();
+}
 
 function meanTraffic() {
   if (!state.route.edgeIds.length) return 0;
@@ -639,6 +775,7 @@ function updateUI() {
   ui.reroute.disabled = !["requested", "to_pickup", "pickup_arrived", "in_progress"].includes(state.status) || Boolean(tween);
 
   if (routeLine) routeLine.visible = state.status !== "idle";
+  drawRouteMap();
 }
 
 function requestTrip() {
