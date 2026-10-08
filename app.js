@@ -724,14 +724,16 @@ function drawRouteMap() {
     marker(start, "A", "#d9cdfd");
     marker(end, "B", "#ffd2b1");
 
-    const vehiclePoint = toCanvas(nodePositions[state.vehicle.location]);
-    ctx.beginPath();
-    ctx.arc(vehiclePoint.x, vehiclePoint.y, 6, 0, Math.PI * 2);
-    ctx.fillStyle = "#ff79b5";
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = "#fff";
-    ctx.stroke();
+    if (state.route.path.includes(state.vehicle.location)) {
+      const vehiclePoint = toCanvas(nodePositions[state.vehicle.location]);
+      ctx.beginPath();
+      ctx.arc(vehiclePoint.x, vehiclePoint.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = "#ff79b5";
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#fff";
+      ctx.stroke();
+    }
   } else {
     ctx.fillStyle = "#8f829c";
     ctx.font = "700 18px Inter, sans-serif";
