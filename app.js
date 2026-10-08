@@ -347,13 +347,19 @@ function addLocationGridUnderlayer() {
     depthWrite: false
   });
 
-  const marginX = 0.55;
-  const marginZ = 0.55;
+  const minI = -1;
+  const maxI = GRID;
+  const minJ = -1;
+  const maxJ = GRID;
+  const minX = -WORLD_X / 2 + minI * STEP_X;
+  const maxX = -WORLD_X / 2 + maxI * STEP_X;
+  const minZ = -WORLD_Z / 2 + minJ * STEP_Z;
+  const maxZ = -WORLD_Z / 2 + maxJ * STEP_Z;
 
-  for (let i = 0; i < GRID; i++) {
-    const x = nodePositions[NODE(i, 0)].x;
-    const start = new THREE.Vector3(x, 0.024, -WORLD_Z / 2 - marginZ);
-    const end = new THREE.Vector3(x, 0.024, WORLD_Z / 2 + marginZ);
+  for (let i = minI; i <= maxI; i++) {
+    const x = -WORLD_X / 2 + i * STEP_X;
+    const start = new THREE.Vector3(x, 0.024, minZ);
+    const end = new THREE.Vector3(x, 0.024, maxZ);
     const strip = makeStrip(start, end, AVENUE_WIDTH + 0.18, 0xffffff, 0.024, 0.72);
     strip.material.dispose();
     strip.material = gridMaterial.clone();
@@ -361,10 +367,10 @@ function addLocationGridUnderlayer() {
     locationGridGroup.add(strip);
   }
 
-  for (let j = 0; j < GRID; j++) {
-    const z = nodePositions[NODE(0, j)].z;
-    const start = new THREE.Vector3(-WORLD_X / 2 - marginX, 0.026, z);
-    const end = new THREE.Vector3(WORLD_X / 2 + marginX, 0.026, z);
+  for (let j = minJ; j <= maxJ; j++) {
+    const z = -WORLD_Z / 2 + j * STEP_Z;
+    const start = new THREE.Vector3(minX, 0.026, z);
+    const end = new THREE.Vector3(maxX, 0.026, z);
     const strip = makeStrip(start, end, STREET_WIDTH + 0.18, 0xffffff, 0.026, 0.72);
     strip.material.dispose();
     strip.material = gridMaterial.clone();
@@ -373,12 +379,18 @@ function addLocationGridUnderlayer() {
   }
 
   const nodeGeometry = new THREE.RingGeometry(0.12, 0.19, 24);
-  for (const p of nodePositions) {
-    const marker = new THREE.Mesh(nodeGeometry, gridMaterial.clone());
-    marker.rotation.x = -Math.PI / 2;
-    marker.position.set(p.x, 0.105, p.z);
-    marker.renderOrder = 8;
-    locationGridGroup.add(marker);
+  for (let j = minJ; j <= maxJ; j++) {
+    for (let i = minI; i <= maxI; i++) {
+      const marker = new THREE.Mesh(nodeGeometry, gridMaterial.clone());
+      marker.rotation.x = -Math.PI / 2;
+      marker.position.set(
+        -WORLD_X / 2 + i * STEP_X,
+        0.105,
+        -WORLD_Z / 2 + j * STEP_Z
+      );
+      marker.renderOrder = 8;
+      locationGridGroup.add(marker);
+    }
   }
 }
 
@@ -559,16 +571,16 @@ function buildActiveRoute(start, goal, phase, updateTripEstimate = false) {
   updateUI();
 }
 
-function makePin(color, height = 1.25) {
+function makePin(color, height = 1.55) {
   const g = new THREE.Group();
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.035, 0.035, height, 10),
+    new THREE.CylinderGeometry(0.052, 0.052, height, 12),
     new THREE.MeshBasicMaterial({ color })
   );
   stem.position.y = height / 2;
   const orb = new THREE.Mesh(
-    new THREE.SphereGeometry(0.22, 20, 20),
-    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.32 })
+    new THREE.SphereGeometry(0.30, 24, 24),
+    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.58 })
   );
   orb.position.y = height;
   g.add(stem, orb);
@@ -582,8 +594,8 @@ destinationPin.position.copy(nodePositions[state.destination.coordinates]);
 scene.add(pickupPin, destinationPin);
 
 const rider = new THREE.Mesh(
-  new THREE.SphereGeometry(0.32, 24, 24),
-  new THREE.MeshStandardMaterial({ color: 0xff4f9a, emissive: 0xff4f9a, emissiveIntensity: 0.25 })
+  new THREE.SphereGeometry(0.40, 28, 28),
+  new THREE.MeshStandardMaterial({ color: 0xff4f9a, emissive: 0xff4f9a, emissiveIntensity: 0.52 })
 );
 rider.castShadow = true;
 rider.position.copy(nodePositions[state.rider.location]).add(new THREE.Vector3(0.42, 0.36, 0.35));
@@ -605,8 +617,8 @@ cabin.position.set(-0.08, 0.66, 0);
 vehicle.add(cabin);
 
 const driverMarker = new THREE.Mesh(
-  new THREE.SphereGeometry(0.13, 16, 16),
-  new THREE.MeshStandardMaterial({ color: 0x4cb7ff, emissive: 0x4cb7ff, emissiveIntensity: 0.55 })
+  new THREE.SphereGeometry(0.20, 20, 20),
+  new THREE.MeshStandardMaterial({ color: 0x4cb7ff, emissive: 0x4cb7ff, emissiveIntensity: 0.95 })
 );
 driverMarker.position.set(0, 0.94, 0);
 vehicle.add(driverMarker);
@@ -673,10 +685,35 @@ function updateGhostVisibility() {
   }
 }
 
-addGhostOverlay(rider, 0.20, 1.05);
-addGhostOverlay(driverMarker, 0.26, 1.16);
-addGhostOverlay(pickupPin, 0.18, 1.05);
-addGhostOverlay(destinationPin, 0.18, 1.05);
+function addVisibilityHalo(root, color, radius, y = 0.08) {
+  const halo = new THREE.Mesh(
+    new THREE.RingGeometry(radius * 0.72, radius, 36),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.62,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
+    })
+  );
+  halo.rotation.x = -Math.PI / 2;
+  halo.position.y = y;
+  halo.renderOrder = 62;
+  halo.userData.isVisibilityHalo = true;
+  root.add(halo);
+  return halo;
+}
+
+addVisibilityHalo(rider, 0xff4f9a, 0.68, -0.22);
+addVisibilityHalo(driverMarker, 0x4cb7ff, 0.48, -0.62);
+addVisibilityHalo(pickupPin, 0x59e391, 0.56, 0.08);
+addVisibilityHalo(destinationPin, 0xffb84d, 0.56, 0.08);
+
+addGhostOverlay(rider, 0.30, 1.12);
+addGhostOverlay(driverMarker, 0.38, 1.24);
+addGhostOverlay(pickupPin, 0.28, 1.10);
+addGhostOverlay(destinationPin, 0.28, 1.10);
 
 function orientVehicle(from, to) {
   if (!from || !to) return;
@@ -816,6 +853,63 @@ function makeRoadLabel(text, x, z, angle = 0, width = 2.8) {
   roadLabelGroup.add(mesh);
   return mesh;
 }
+
+function makeCoordinateLabel(text, x, z, angle = 0) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 192;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(255, 255, 255, .92)";
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(20, 18, 152, 92, 24);
+  else ctx.rect(20, 18, 152, 92);
+  ctx.fill();
+
+  ctx.fillStyle = "#594a67";
+  ctx.font = "900 50px Inter, Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 96, 65);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.9, 0.60),
+    new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    })
+  );
+  mesh.position.set(x, 0.20, z);
+  mesh.rotation.set(-Math.PI / 2, 0, angle);
+  mesh.renderOrder = 36;
+  roadLabelGroup.add(mesh);
+  return mesh;
+}
+
+const extendedMinX = -WORLD_X / 2 - STEP_X;
+const extendedMinZ = -WORLD_Z / 2 - STEP_Z;
+const extendedMaxX = WORLD_X / 2 + STEP_X;
+const extendedMaxZ = WORLD_Z / 2 + STEP_Z;
+
+for (let i = -1; i <= GRID; i++) {
+  const x = -WORLD_X / 2 + i * STEP_X;
+  makeCoordinateLabel(String(i), x, extendedMinZ - 0.72, 0);
+}
+
+for (let j = -1; j <= GRID; j++) {
+  const z = -WORLD_Z / 2 + j * STEP_Z;
+  makeCoordinateLabel(String(j), extendedMinX - 0.72, z, Math.PI / 2);
+}
+
+makeRoadLabel("X", extendedMaxX + 1.05, extendedMinZ - 0.72, 0, 1.0);
+makeRoadLabel("Y", extendedMinX - 0.72, extendedMaxZ + 0.75, Math.PI / 2, 1.0);
 
 for (let i = 0; i < GRID; i++) {
   const x = nodePositions[NODE(i, 0)].x;
@@ -1230,13 +1324,28 @@ renderer.domElement.addEventListener("pointermove", event => {
   if (!ui.hoverTooltip) return;
   setHoverPointer(event);
 
-  const hoverSceneTargets = [
-    ...semanticHoverTargets,
+  // Critical semantic objects are tested first, independent of building occlusion.
+  // This lets Rider / Driver / Pickup / Destination remain hoverable through buildings.
+  const semanticHit = locationRaycaster.intersectObjects(semanticHoverTargets, true)[0];
+  if (semanticHit) {
+    const info = hoverInfoFromHit(semanticHit);
+    if (info) {
+      ui.hoverTooltip.innerHTML = `<strong>${info.name}</strong><span>${info.detail}</span>`;
+      ui.hoverTooltip.style.left = `${event.clientX}px`;
+      ui.hoverTooltip.style.top = `${event.clientY}px`;
+      ui.hoverTooltip.style.display = "block";
+      renderer.domElement.style.cursor = "pointer";
+      return;
+    }
+  }
+
+  // For non-critical metadata, buildings still block hover information.
+  const secondaryTargets = [
     ...cityGroup.children,
     ...roadLabelGroup.children,
     ...nodeHoverTargets
   ];
-  const hits = locationRaycaster.intersectObjects(hoverSceneTargets, true);
+  const hits = locationRaycaster.intersectObjects(secondaryTargets, true);
 
   if (!hits.length) {
     ui.hoverTooltip.style.display = "none";
