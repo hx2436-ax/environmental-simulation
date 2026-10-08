@@ -172,6 +172,86 @@ h1 {
 .line.route { background: linear-gradient(90deg, #8ddaf2, #b8a4ff); }
 .line.road { background: #a7a2b2; }
 
+.route-map-card {
+  right: 18px;
+  bottom: 98px;
+  width: 290px;
+  padding: 13px 14px 12px;
+  border-radius: 22px;
+  background: rgba(255, 252, 255, .90);
+}
+
+.route-map-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.route-map-header strong {
+  display: block;
+  margin-top: 1px;
+  color: #4d405c;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.route-map-eyebrow {
+  margin: 0;
+  color: #9b82b6;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .14em;
+}
+
+#route-map-phase {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #f2edff;
+  color: #75618d;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+#route-map {
+  width: 100%;
+  height: 160px;
+  display: block;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(251,249,255,.98), rgba(242,238,249,.98));
+  border: 1px solid rgba(111, 91, 139, .10);
+}
+
+.route-map-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  margin-top: 9px;
+  color: #756a80;
+  font-size: 9px;
+}
+
+.route-map-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.traffic-key {
+  width: 17px;
+  height: 4px;
+  display: inline-block;
+  border-radius: 999px;
+}
+
+.traffic-key.good { background: #59c982; }
+.traffic-key.medium { background: #e9b949; }
+.traffic-key.heavy { background: #e56b75; }
+
 .toolbar {
   left: 18px;
   right: 18px;
@@ -262,10 +342,28 @@ h1 {
   background: rgba(255,250,255,.84);
 }
 
+@media (max-width: 980px) {
+  .route-map-card {
+    width: 248px;
+  }
+
+  #route-map {
+    height: 140px;
+  }
+}
+
 @media (max-width: 760px) {
   .subtitle, .legend-card { display: none; }
   .info-card { width: 194px; top: 103px; }
   .message { display: none; }
+  .route-map-card {
+    right: 10px;
+    bottom: 88px;
+    width: 220px;
+    padding: 10px;
+  }
+  #route-map { height: 118px; }
+  .route-map-legend { display: none; }
   .title-card { top: 10px; left: 10px; right: 10px; border-radius: 20px; }
   .toolbar { left: 10px; right: 10px; bottom: 10px; border-radius: 20px; }
 }
