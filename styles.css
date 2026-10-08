@@ -104,8 +104,158 @@ h1 {
 .status-pill[data-status="cancelled"],
 .status-pill[data-status="rejected"] { background: #ffe3ed; color: #9a5571; }
 
+.compass-card {
+  top: 112px;
+  right: 18px;
+  width: 118px;
+  height: 108px;
+  padding: 8px 8px 7px;
+  border-radius: 22px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  place-items: center;
+  overflow: hidden;
+  background: rgba(255, 252, 255, .90);
+}
+
+.compass-stage {
+  width: 82px;
+  height: 67px;
+  display: grid;
+  place-items: center;
+  perspective: 180px;
+}
+
+.compass-rose {
+  --heading: 0deg;
+  position: relative;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  border: 1px solid rgba(91, 72, 116, .22);
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255,255,255,.98) 0 14%, rgba(240,234,251,.96) 15% 63%, rgba(208,196,228,.88) 64% 100%);
+  box-shadow:
+    0 10px 18px rgba(82, 60, 113, .17),
+    inset 0 2px 5px rgba(255,255,255,.9);
+  transform-style: preserve-3d;
+  transform: rotateX(56deg) rotateZ(var(--heading));
+  transition: transform .08s linear;
+}
+
+.compass-dir {
+  position: absolute;
+  font-size: 9px;
+  font-weight: 900;
+  color: #766687;
+  line-height: 1;
+}
+
+.compass-dir.north { top: 5px; left: 50%; transform: translateX(-50%); color: #d05f87; }
+.compass-dir.east { right: 6px; top: 50%; transform: translateY(-50%); }
+.compass-dir.south { bottom: 5px; left: 50%; transform: translateX(-50%); }
+.compass-dir.west { left: 6px; top: 50%; transform: translateY(-50%); }
+
+.compass-cross {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: rgba(111, 94, 133, .22);
+  transform-origin: center;
+}
+
+.compass-cross.horizontal {
+  width: 50px;
+  height: 1px;
+  transform: translate(-50%, -50%);
+}
+
+.compass-cross.vertical {
+  width: 1px;
+  height: 50px;
+  transform: translate(-50%, -50%);
+}
+
+.compass-north-arrow {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 22px solid #ff7cab;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 2px 2px rgba(120,70,100,.18));
+}
+
+.compass-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #8b78a1;
+  transform: translate(-50%, -50%) translateZ(4px);
+  box-shadow: 0 2px 5px rgba(66, 49, 87, .18);
+}
+
+.compass-readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  color: #5e506c;
+}
+
+.compass-readout strong {
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.compass-readout span {
+  font-size: 9px;
+  font-weight: 850;
+  color: #9b82b6;
+}
+
+.hover-tooltip {
+  position: fixed;
+  z-index: 40;
+  left: 0;
+  top: 0;
+  display: none;
+  max-width: 220px;
+  pointer-events: none;
+  padding: 8px 10px;
+  border: 1px solid rgba(116, 91, 151, .13);
+  border-radius: 12px;
+  background: rgba(255, 252, 255, .94);
+  box-shadow: 0 8px 24px rgba(80, 59, 118, .18);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: #55485f;
+  font-size: 10px;
+  line-height: 1.4;
+  transform: translate(12px, 12px);
+}
+
+.hover-tooltip strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #43364e;
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.hover-tooltip span {
+  color: #81728e;
+}
+
 .info-card {
-  top: 120px;
+  top: 232px;
   right: 18px;
   width: 248px;
   border-radius: 22px;
@@ -528,6 +678,14 @@ h1 {
 }
 
 @media (max-width: 1100px) {
+  .compass-card {
+    width: 104px;
+  }
+
+  .info-card {
+    top: 226px;
+  }
+
   .location-card {
     width: 274px;
   }
@@ -544,6 +702,15 @@ h1 {
 @media (max-width: 760px) {
   .subtitle, .legend-card { display: none; }
   .info-card { display: none; }
+  .compass-card {
+    top: 94px;
+    right: 10px;
+    width: 96px;
+    height: 92px;
+    border-radius: 18px;
+  }
+  .compass-stage { transform: scale(.84); }
+  .hover-tooltip { max-width: 180px; }
   .message { display: none; }
 
   .location-card {
