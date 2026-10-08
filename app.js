@@ -620,6 +620,18 @@ const ui = {
   traffic: document.querySelector("#traffic"),
   routeMap: document.querySelector("#route-map"),
   routeMapPhase: document.querySelector("#route-map-phase"),
+  locationSelected: document.querySelector("#location-selected"),
+  locNode: document.querySelector("#loc-node"),
+  locGrid: document.querySelector("#loc-grid"),
+  locWorld: document.querySelector("#loc-world"),
+  locScreen: document.querySelector("#loc-screen"),
+  locHuman: document.querySelector("#loc-human"),
+  locRelative: document.querySelector("#loc-relative"),
+  locOccupants: document.querySelector("#loc-occupants"),
+  referenceFrame: document.querySelector("#reference-frame"),
+  locationQueryForm: document.querySelector("#location-query-form"),
+  locationQuery: document.querySelector("#location-query"),
+  locationQueryResult: document.querySelector("#location-query-result"),
   message: document.querySelector("#message"),
   request: document.querySelector("#request-btn"),
   accept: document.querySelector("#accept-btn"),
@@ -631,6 +643,340 @@ const ui = {
   reroute: document.querySelector("#reroute-btn"),
   reset: document.querySelector("#reset-btn")
 };
+
+const AVENUE_NAMES = Array.from({ length: GRID }, (_, i) => `Avenue ${i + 1}`);
+const STREET_NAMES = Array.from({ length: GRID }, (_, j) => `Street ${20 + j}`);
+
+let selectedLocation = { kind: "rider", nodeIndex: state.rider.location, label: "Rider" };
+
+const selectionRing = new THREE.Mesh(
+  new THREE.RingGeometry(0.30, 0.46, 32),
+  new THREE.MeshBasicMaterial({
+    color: 0xff79b5,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.9,
+    depthTest: false
+  })
+);
+selectionRing.rotation.x = -Math.PI / 2;
+selectionRing.position.y = 0.19;
+selectionRing.renderOrder = 40;
+scene.add(selectionRing);
+
+function effectiveRiderNode() {
+  if (state.status === "in_progress" || state.status === "completed") {
+    return state.vehicle.location;
+  }
+  return state.rider.location;
+}
+
+function nodeForKind(kind) {
+  if (kind === "rider") return effectiveRiderNode();
+  if (kind === "driver" || kind === "vehicle") return state.vehicle.location;
+  if (kind === "pickup") return state.pickup.coordinates;
+  if (kind === "destination") return state.destination.coordinates;
+  return selectedLocation.nodeIndex;
+}
+
+function labelForKind(kind) {
+  if (kind === "rider") return "Rider";
+  if (kind === "driver") return "Driver / Vehicle";
+  if (kind === "pickup") return "Pickup";
+  if (kind === "destination") return "Destination";
+  return selectedLocation.label || "Location";
+}
+
+function worldPositionForSelection() {
+  const nodeIndex = nodeForKind(selectedLocation.kind);
+  if (selectedLocation.kind === "driver" || selectedLocation.kind === "vehicle") {
+    return vehicle.position.clone();
+  }
+  if (selectedLocation.kind === "rider" && rider.visible) {
+    return rider.position.clone();
+  }
+  if (selectedLocation.kind === "pickup") return pickupPin.position.clone();
+  if (selectedLocation.kind === "destination") return destinationPin.position.clone();
+  return nodePositions[nodeIndex].clone();
+}
+
+function nodeGrid(index) {
+  return {
+    i: index % GRID,
+    j: Math.floor(index / GRID)
+  };
+}
+
+function nodeHumanName(index) {
+  const { i, j } = nodeGrid(index);
+  return `${AVENUE_NAMES[i]} & ${STREET_NAMES[j]}`;
+}
+
+function relativeDescription(targetNode, referenceNode, referenceLabel) {
+  const target = nodeGrid(targetNode);
+  const reference = nodeGrid(referenceNode);
+  const dx = target.i - reference.i;
+  const dy = target.j - reference.j;
+
+  if (dx === 0 && dy === 0) {
+    return `At the same location as ${referenceLabel}.`;
+  }
+
+  const parts = [];
+  if (dx !== 0) {
+    parts.push(`${Math.abs(dx)} block${Math.abs(dx) === 1 ? "" : "s"} ${dx > 0 ? "east" : "west"}`);
+  }
+  if (dy !== 0) {
+    parts.push(`${Math.abs(dy)} block${Math.abs(dy) === 1 ? "" : "s"} ${dy > 0 ? "north" : "south"}`);
+  }
+
+  return `${parts.join(" and ")} of ${referenceLabel}.`;
+}
+
+function occupantsAtNode(nodeIndex) {
+  const occupants = [];
+
+  if (effectiveRiderNode() === nodeIndex) {
+    occupants.push(state.status === "in_progress" ? "Rider · onboard" : "Rider");
+  }
+  if (state.vehicle.location === nodeIndex) {
+    occupants.push("Driver", "Vehicle");
+  }
+  if (state.pickup.coordinates === nodeIndex) occupants.push("Pickup marker");
+  if (state.destination.coordinates === nodeIndex) occupants.push("Destination marker");
+  if (state.route.path.includes(nodeIndex)) occupants.push("Active route");
+
+  return occupants;
+}
+
+function screenCoordinates(worldPosition) {
+  const p = worldPosition.clone().project(camera);
+  return {
+    x: Math.round((p.x * 0.5 + 0.5) * innerWidth),
+    y: Math.round((-p.y * 0.5 + 0.5) * innerHeight)
+  };
+}
+
+function referenceNodeAndLabel() {
+  const kind = ui.referenceFrame?.value || "rider";
+  return {
+    node: nodeForKind(kind),
+    label: labelForKind(kind)
+  };
+}
+
+function updateLocationInspector() {
+  if (!ui.locationSelected) return;
+
+  const nodeIndex = nodeForKind(selectedLocation.kind);
+  selectedLocation.nodeIndex = nodeIndex;
+
+  const { i, j } = nodeGrid(nodeIndex);
+  const p = nodePositions[nodeIndex];
+  const screen = screenCoordinates(worldPositionForSelection());
+  const reference = referenceNodeAndLabel();
+  const occupants = occupantsAtNode(nodeIndex);
+
+  ui.locationSelected.textContent = labelForKind(selectedLocation.kind);
+  ui.locNode.textContent = `N${nodeIndex}`;
+  ui.locGrid.textContent = `(${i}, ${j})`;
+  ui.locWorld.textContent = `x ${p.x.toFixed(1)} · z ${p.z.toFixed(1)}`;
+  ui.locScreen.textContent = `${screen.x}px · ${screen.y}px`;
+  ui.locHuman.textContent =
+    `At ${nodeHumanName(nodeIndex)} on the stylized NYC grid. ` +
+    relativeDescription(nodeIndex, state.destination.coordinates, "Destination");
+  ui.locRelative.textContent = relativeDescription(nodeIndex, reference.node, reference.label);
+
+  ui.locOccupants.innerHTML = "";
+  const shown = occupants.length ? occupants : ["Empty"];
+  for (const item of shown) {
+    const chip = document.createElement("span");
+    chip.textContent = item;
+    ui.locOccupants.appendChild(chip);
+  }
+
+  selectionRing.position.x = p.x;
+  selectionRing.position.z = p.z;
+}
+
+function selectLocation(kind, nodeIndex = null, label = null) {
+  selectedLocation = {
+    kind,
+    nodeIndex: nodeIndex ?? nodeForKind(kind),
+    label: label ?? labelForKind(kind)
+  };
+  updateLocationInspector();
+}
+
+function resolveNamedLocation(name) {
+  const normalized = name.toLowerCase();
+  if (["rider", "passenger"].includes(normalized)) return { kind: "rider", node: effectiveRiderNode(), label: "Rider" };
+  if (["driver", "vehicle", "car"].includes(normalized)) return { kind: "driver", node: state.vehicle.location, label: "Driver / Vehicle" };
+  if (normalized === "pickup") return { kind: "pickup", node: state.pickup.coordinates, label: "Pickup" };
+  if (normalized === "destination") return { kind: "destination", node: state.destination.coordinates, label: "Destination" };
+  return null;
+}
+
+const numberWords = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5
+};
+
+function parseDistanceToken(token) {
+  if (/^\d+$/.test(token)) return Number(token);
+  return numberWords[token] ?? null;
+}
+
+function resolveLocationDescription(raw) {
+  const query = raw.trim().toLowerCase().replace(/[.,!?]/g, "");
+  if (!query) return { error: "Type a location description first." };
+
+  const nearest = query.match(/^nearest intersection to (rider|passenger|driver|vehicle|car|pickup|destination)$/);
+  if (nearest) {
+    const base = resolveNamedLocation(nearest[1]);
+    return {
+      node: base.node,
+      label: `Nearest intersection to ${base.label}`,
+      explanation: `${nodeHumanName(base.node)} · Node N${base.node}`
+    };
+  }
+
+  const relative = query.match(/^(\d+|one|two|three|four|five) blocks? (north|south|east|west) of (rider|passenger|driver|vehicle|car|pickup|destination)$/);
+  if (relative) {
+    const distance = parseDistanceToken(relative[1]);
+    const direction = relative[2];
+    const base = resolveNamedLocation(relative[3]);
+    const g = nodeGrid(base.node);
+    let i = g.i;
+    let j = g.j;
+
+    if (direction === "east") i += distance;
+    if (direction === "west") i -= distance;
+    if (direction === "north") j += distance;
+    if (direction === "south") j -= distance;
+
+    if (i < 0 || i >= GRID || j < 0 || j >= GRID) {
+      return { error: "That description resolves outside the simulated grid." };
+    }
+
+    const node = NODE(i, j);
+    return {
+      node,
+      label: "Resolved location",
+      explanation: `${nodeHumanName(node)} · Node N${node}`
+    };
+  }
+
+  const direct = query.match(/^(at )?(rider|passenger|driver|vehicle|car|pickup|destination)$/);
+  if (direct) {
+    const base = resolveNamedLocation(direct[2]);
+    return {
+      node: base.node,
+      label: base.label,
+      kind: base.kind,
+      explanation: `${nodeHumanName(base.node)} · Node N${base.node}`
+    };
+  }
+
+  return {
+    error: "Try “one block east of rider”, “2 blocks north of pickup”, or “nearest intersection to driver”."
+  };
+}
+
+const selectableTargets = [];
+
+function markSelectable(object, kind, nodeIndex = null) {
+  object.traverse(child => {
+    child.userData.locationKind = kind;
+    if (nodeIndex !== null) child.userData.nodeIndex = nodeIndex;
+  });
+  selectableTargets.push(object);
+}
+
+markSelectable(rider, "rider");
+markSelectable(vehicle, "driver");
+markSelectable(pickupPin, "pickup");
+markSelectable(destinationPin, "destination");
+
+for (let index = 0; index < nodePositions.length; index++) {
+  const hit = new THREE.Mesh(
+    new THREE.SphereGeometry(0.46, 8, 8),
+    new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false
+    })
+  );
+  hit.position.copy(nodePositions[index]);
+  hit.position.y = 0.28;
+  hit.userData.locationKind = "node";
+  hit.userData.nodeIndex = index;
+  scene.add(hit);
+  selectableTargets.push(hit);
+}
+
+const locationRaycaster = new THREE.Raycaster();
+const locationPointer = new THREE.Vector2();
+let pointerStart = null;
+
+renderer.domElement.addEventListener("pointerdown", event => {
+  pointerStart = { x: event.clientX, y: event.clientY };
+});
+
+renderer.domElement.addEventListener("pointerup", event => {
+  if (!pointerStart) return;
+
+  const movement = Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y);
+  pointerStart = null;
+  if (movement > 6) return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  locationPointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  locationPointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  locationRaycaster.setFromCamera(locationPointer, camera);
+
+  const hits = locationRaycaster.intersectObjects(selectableTargets, true);
+  if (!hits.length) return;
+
+  const object = hits[0].object;
+  const kind = object.userData.locationKind;
+  const nodeIndex = object.userData.nodeIndex;
+
+  if (kind === "node") {
+    selectLocation("node", nodeIndex, nodeHumanName(nodeIndex));
+  } else {
+    selectLocation(kind);
+  }
+});
+
+if (ui.referenceFrame) {
+  ui.referenceFrame.addEventListener("change", updateLocationInspector);
+}
+
+if (ui.locationQueryForm) {
+  ui.locationQueryForm.addEventListener("submit", event => {
+    event.preventDefault();
+    const resolved = resolveLocationDescription(ui.locationQuery.value);
+
+    if (resolved.error) {
+      ui.locationQueryResult.textContent = resolved.error;
+      return;
+    }
+
+    if (resolved.kind) {
+      selectLocation(resolved.kind, resolved.node, resolved.label);
+    } else {
+      selectLocation("node", resolved.node, resolved.label);
+    }
+
+    ui.locationQueryResult.textContent = resolved.explanation;
+  });
+}
+
+controls.addEventListener("change", updateLocationInspector);
 
 function routeMapTrafficColor(level) {
   if (level < 1.65) return "#59c982";
@@ -778,6 +1124,7 @@ function updateUI() {
 
   if (routeLine) routeLine.visible = state.status !== "idle";
   drawRouteMap();
+  updateLocationInspector();
 }
 
 function requestTrip() {
@@ -934,6 +1281,7 @@ function resetSimulation() {
   state.rider.destination = state.destination.coordinates;
   state.route = { phase: "none", path: [], edgeIds: [], distance: 0, estimatedTravelTime: 0 };
   state.movementIndex = 0;
+  selectedLocation = { kind: "rider", nodeIndex: state.rider.location, label: "Rider" };
 
   const newDriverNode = randomDriverNode();
   state.driver.location = newDriverNode;
@@ -965,6 +1313,7 @@ window.addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  updateLocationInspector();
 });
 
 function animate(now) {
