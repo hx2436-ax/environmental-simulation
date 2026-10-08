@@ -12,11 +12,30 @@
   <header class="hud title-card">
     <div>
       <p class="eyebrow">ENVIRONMENT SIMULATION</p>
-      <h1>NYC Ride Simulation ♡</h1>
+      <h1>NYC Ride Simulation</h1>
       <p class="subtitle">A soft little city simulation of riders, drivers, routes & traffic</p>
     </div>
     <div id="trip-status" class="status-pill" data-status="idle">IDLE</div>
   </header>
+
+  <aside class="hud compass-card" aria-label="3D orientation compass">
+    <div class="compass-stage">
+      <div id="compass-rose" class="compass-rose">
+        <span class="compass-dir north">N</span>
+        <span class="compass-dir east">E</span>
+        <span class="compass-dir south">S</span>
+        <span class="compass-dir west">W</span>
+        <span class="compass-cross horizontal"></span>
+        <span class="compass-cross vertical"></span>
+        <span class="compass-north-arrow"></span>
+        <span class="compass-center"></span>
+      </div>
+    </div>
+    <div class="compass-readout">
+      <strong id="compass-heading">000°</strong>
+      <span id="compass-bearing">N</span>
+    </div>
+  </aside>
 
   <aside class="hud info-card" aria-live="polite">
     <div class="metric"><span>Trip</span><strong id="trip-id">—</strong></div>
@@ -121,6 +140,8 @@
   </footer>
 
   <div id="message" class="hud message">Rider and driver are ready. Request a trip to begin.</div>
+
+  <div id="hover-tooltip" class="hover-tooltip" role="status" aria-live="polite"></div>
 
   <script type="module" src="./app.js"></script>
 </body>
