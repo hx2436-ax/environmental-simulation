@@ -19,10 +19,10 @@ function controls(){
 function currentRoute(){return s.routes?.[s.phase];}
 function endpoint(kind){return s[kind];}
 function marker(kind,coords){
- if(!markers[kind]){const el=document.createElement('div');el.className=`pin ${kind==='driver'?'vehicle':''}`;el.style.setProperty('--pin',({driver:'#417faa',pickup:'#429d79',destination:'#d19a35',rider:'#d8488a'})[kind]);const b=document.createElement('b');b.textContent=kind==='driver'?'🚕 Driver':kind[0].toUpperCase()+kind.slice(1);const stem=document.createElement('i');el.append(b,stem);el.title=kind;markers[kind]=new maplibregl.Marker({element:el,anchor:'bottom'}).setLngLat(coords).addTo(map);}
+ if(!markers[kind]){const el=document.createElement('div');el.className=`pin ${kind==='driver'?'vehicle':''}`;el.style.setProperty('--pin',({driver:'#417faa',pickup:'#429d79',destination:'#d19a35',rider:'#d8488a'})[kind]);const b=document.createElement('b');b.textContent=kind==='driver'?'🚕 Driver':kind[0].toUpperCase()+kind.slice(1);const stem=document.createElement('i');el.append(b,stem);el.title=kind;markers[kind]=new maplibregl.Marker({element:el,anchor:'bottom',offset:kind==='rider'?[0,-32]:[0,0]}).setLngLat(coords).addTo(map);}
  markers[kind].setLngLat(coords);markers[kind].getElement().title=`${kind}: ${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}`;
 }
-function updateMarkers(){for(const kind of ['driver','pickup','destination'])if(s[kind])marker(kind,s[kind]);const r=s.status==='trip'||s.status==='completed'?s.driver:s.pickup;if(r)marker('rider',r);}
+function updateMarkers(){for(const kind of ['driver','pickup','destination'])if(s[kind])marker(kind,s[kind]);const r=s.status==='trip'||s.status==='completed'?s.driver:s.pickup;if(r)marker('rider',r);const onboard=s.status==='trip'||s.status==='completed';if(markers.rider)markers.rider.getElement().style.display=onboard?'none':'';if(markers.driver)markers.driver.getElement().querySelector('b').textContent=onboard?'🚕 Driver + Rider':'🚕 Driver';}
 async function route(a,b,signal){
  if(distance(a,b)<.1)return {coords:[a,b],cumulative:[0,0],distance:0,duration:0,from:a,to:b};
  const u=`https://router.project-osrm.org/route/v1/driving/${a.join(',')};${b.join(',')}?overview=full&geometries=geojson&steps=false`;
