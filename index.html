@@ -1,176 +1,19 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Uber Ride — Semantic Environment Simulation</title>
-  <link rel="stylesheet" href="./styles.css" />
-</head>
-<body>
-  <div id="scene"></div>
-
-  <header class="hud title-card">
-    <div>
-      <p class="eyebrow">ENVIRONMENT SIMULATION</p>
-      <h1>NYC Ride Simulation</h1>
-      <p class="subtitle">A soft little city simulation of riders, drivers, routes & traffic</p>
-    </div>
-    <div id="trip-status" class="status-pill" data-status="idle">IDLE</div>
-  </header>
-
-  <aside class="hud compass-card" aria-label="3D orientation compass">
-    <div class="compass-stage">
-      <div id="compass-rose" class="compass-rose">
-        <span class="compass-dir north">N</span>
-        <span class="compass-dir east">E</span>
-        <span class="compass-dir south">S</span>
-        <span class="compass-dir west">W</span>
-        <span class="compass-cross horizontal"></span>
-        <span class="compass-cross vertical"></span>
-        <span class="compass-north-arrow"></span>
-        <span class="compass-center"></span>
-      </div>
-    </div>
-    <div class="compass-readout">
-      <strong id="compass-heading">000°</strong>
-      <span id="compass-bearing">N</span>
-    </div>
-  </aside>
-
-  <aside class="hud info-card" aria-live="polite">
-    <div class="metric"><span>Trip</span><strong id="trip-id">—</strong></div>
-    <div class="metric"><span>Estimated time</span><strong id="eta">—</strong></div>
-    <div class="metric"><span>Fare</span><strong id="fare">—</strong></div>
-    <div class="metric"><span>Distance</span><strong id="distance">—</strong></div>
-    <div class="metric"><span>Driver available</span><strong id="availability">Yes</strong></div>
-    <div class="metric"><span>Vehicle capacity</span><strong>4</strong></div>
-    <div class="metric"><span>Route roads</span><strong id="road-count">—</strong></div>
-    <div class="metric"><span>Average traffic</span><strong id="traffic">—</strong></div>
-  </aside>
-
-  <nav class="hud workshop-tabs" aria-label="Workshop tools">
-    <button id="distance-tab" aria-pressed="true">Distance Lab</button>
-    <button id="location-tab" aria-pressed="false">Location Inspector</button>
-  </nav>
-  <aside class="hud distance-card" aria-label="Distance workshop">
-    <p class="location-eyebrow">DISTANCE WORKSHOP / TWO METRICS</p>
-    <h2>How far is close?</h2>
-    <div class="distance-selectors">
-      <label>From A<select id="distance-from"></select></label>
-      <label>To B<select id="distance-to"></select></label>
-    </div>
-    <p id="distance-positions" class="location-copy"></p>
-    <canvas id="distance-map" width="600" height="270" aria-label="Comparison of direct and road paths"></canvas>
-    <div class="distance-key"><span>··· Straight line</span><span>━ Shortest road path</span></div>
-    <div class="distance-result"><span>01 · Euclidean</span><strong id="distance-direct"></strong></div>
-    <div class="distance-track"><i id="distance-direct-bar"></i></div>
-    <div class="distance-result"><span>02 · Road network</span><strong id="distance-network"></strong></div>
-    <div class="distance-track"><i id="distance-network-bar"></i></div>
-    <p id="distance-detour" class="location-copy"></p>
-    <label class="distance-threshold">“Close” threshold <input id="distance-threshold" type="number" min="100" max="10000" step="100" value="1200"> m</label>
-    <p id="distance-insight" class="distance-insight" aria-live="polite"></p>
-    <p id="distance-time" class="location-copy"></p>
-    <button id="distance-demo">Show near / far example</button>
-    <label class="distance-overlay"><input id="distance-overlay" type="checkbox" checked> Show both distances in 3D</label>
-    <details><summary>How measurements work</summary><p>Euclidean = √(Δx² + Δz²). Road distance = sum of edge lengths along the shortest connected path (Dijkstra). Both use the same model scale: 115 m per world unit, not surveyed NYC distances. Traffic changes the fastest route and its time, not the shortest physical road distance. Travel time assumes 240 m/min divided by each road’s congestion factor.</p><p>Agents occupy road intersections. During a movement animation, measurements use the last reached intersection; they update on arrival. A rider on board occupies the driver’s intersection. Select any two intersections to compare fixed locations.</p></details>
-  </aside>
-
-  <aside class="hud location-card" aria-label="Location workshop inspector">
-    <div class="location-header">
-      <div>
-        <p class="location-eyebrow">LOCATION WORKSHOP</p>
-        <strong>Location Inspector</strong>
-      </div>
-      <span id="location-selected">Rider</span>
-    </div>
-
-    <div class="location-section">
-      <p class="location-label">Machine Location</p>
-      <div class="location-grid">
-        <span>Node</span><strong id="loc-node">—</strong>
-        <span>Grid</span><strong id="loc-grid">—</strong>
-        <span>World</span><strong id="loc-world">—</strong>
-        <span>Screen</span><strong id="loc-screen">—</strong>
-      </div>
-    </div>
-
-    <div class="location-section">
-      <p class="location-label">Human Location</p>
-      <p id="loc-human" class="location-copy">Click a rider, vehicle, marker, or intersection.</p>
-    </div>
-
-    <div class="location-section">
-      <div class="reference-row">
-        <p class="location-label">Frame of Reference</p>
-        <select id="reference-frame" aria-label="Location frame of reference">
-          <option value="rider">Rider</option>
-          <option value="driver">Driver</option>
-          <option value="pickup">Pickup</option>
-          <option value="destination">Destination</option>
-        </select>
-      </div>
-      <p id="loc-relative" class="location-copy">—</p>
-    </div>
-
-    <div class="location-section">
-      <p class="location-label">Occupying This Location</p>
-      <div id="loc-occupants" class="occupant-list"><span>—</span></div>
-    </div>
-
-    <form id="location-query-form" class="location-query">
-      <label for="location-query">Describe a location</label>
-      <div>
-        <input id="location-query" type="text" placeholder="one block east of rider" autocomplete="off" />
-        <button type="submit">Resolve</button>
-      </div>
-      <p id="location-query-result">Try “2 blocks north of pickup” or “nearest intersection to driver”.</p>
-    </form>
-
-    <p class="location-hint">Tip: click directly on the simulation to inspect a location.</p>
-  </aside>
-
-  <section class="hud legend-card">
-    <span><i class="dot rider"></i> Rider</span>
-    <span><i class="dot driver"></i> Driver</span>
-    <span><i class="dot pickup"></i> Pickup</span>
-    <span><i class="dot destination"></i> Destination</span>
-    <span><i class="line route"></i> Route guide</span>
-    <span><i class="line road"></i> Traffic</span>
-  </section>
-
-  <aside class="hud route-map-card" aria-label="Route traffic overview">
-    <div class="route-map-header">
-      <div>
-        <p class="route-map-eyebrow">ROUTE OVERVIEW</p>
-        <strong>Full Trip Traffic</strong>
-      </div>
-      <span id="route-map-phase">No route</span>
-    </div>
-    <canvas id="route-map" width="560" height="320"></canvas>
-    <div class="route-map-legend">
-      <span><i class="traffic-key good"></i>Light</span>
-      <span><i class="traffic-key medium"></i>Medium</span>
-      <span><i class="traffic-key heavy"></i>Heavy</span>
-    </div>
-  </aside>
-
-  <footer class="hud toolbar" aria-label="Simulation controls">
-    <button id="request-btn">Request Ride ♡</button>
-    <button id="accept-btn" disabled>Accept ✓</button>
-    <button id="reject-btn" disabled>Reject ×</button>
-    <button id="cancel-btn" disabled>Cancel</button>
-    <button id="start-btn" disabled>Start Ride ✦</button>
-    <button id="move-btn" disabled>Move Car →</button>
-    <button id="traffic-btn">Traffic ☁</button>
-    <button id="reroute-btn" disabled>Reroute ↻</button>
-    <button id="reset-btn" class="secondary">Reset ↺</button>
-  </footer>
-
-  <div id="message" class="hud message">Rider and driver are ready. Request a trip to begin.</div>
-
-  <div id="hover-tooltip" class="hover-tooltip" role="status" aria-live="polite"></div>
-
-  <script type="module" src="./app.js"></script>
-</body>
-</html>
-
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Manhattan Ride · Distance Lab</title><link href="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.css" rel="stylesheet"><link href="manhattan.css" rel="stylesheet"></head><body>
+<div id="map" aria-label="Interactive Manhattan map"></div>
+<header class="glass"><div><p class="eyebrow">SPATIAL AI / REAL CITY EDITION</p><h1>Manhattan Ride</h1><p class="subtitle">Midtown, New York · real streets, two ways of measuring distance</p></div><span id="status" role="status">Loading map</span></header>
+<aside class="glass panel">
+<p class="eyebrow">01 / SET THE TRIP</p><div class="places"><label>Driver<select id="driver-place"></select></label><label>Pickup<select id="pickup-place"></select></label><label>Destination<select id="destination-place"></select></label></div>
+<div class="edit-row"><button data-place="driver">Place driver</button><button data-place="pickup">Place pickup</button><button data-place="destination">Place destination</button></div><p id="edit-hint" class="muted">Choose a place, or place an endpoint on the map. Routing snaps it to a drivable road.</p>
+<div class="section-title"><p class="eyebrow">02 / DISTANCE LAB</p><select id="compare" aria-label="Distance comparison"><option value="trip">Pickup → Destination</option><option value="pickup">Driver → Pickup</option><option value="remaining">Driver → Destination</option></select></div>
+<canvas id="overview" width="580" height="280" aria-label="Top-down comparison of direct and driving paths"></canvas>
+<div class="value"><span><i class="pink"></i>Direct · geographic</span><strong id="direct">—</strong></div><div class="bar"><i id="direct-bar"></i></div>
+<div class="value"><span><i class="purple"></i>Driving · road network</span><strong id="road">—</strong></div><div class="bar"><i id="road-bar"></i></div>
+<p id="ratio" class="muted">Planning a route…</p><label class="threshold">Close within <input id="threshold" type="number" value="1200" min="100" max="10000" step="100"> m</label><p id="insight" class="insight" aria-live="polite">Compare the same locations using two measures.</p>
+<p id="coordinates" class="coordinates"></p>
+<details><summary>Data & measurement</summary><p>Map and building footprints: OpenStreetMap / OpenFreeMap. Heights depend on available data; missing heights use an 8 m display fallback. These are extruded building volumes.</p><p>Direct distance uses the great-circle distance between road-snapped endpoints. Road distance sums the routed driving path; OSRM selects a fast legal driving route, which is not guaranteed to be the shortest distance. Driving distances can differ by direction.</p><p>Route time is OSRM’s model estimate, not live traffic. The congestion control below is simulated. Public map and routing services require an internet connection.</p></details>
+<a class="legacy" href="simulation.html">Open original city simulation</a>
+</aside>
+<aside class="glass trip-card"><p class="eyebrow">LIVE TRIP</p><h2 id="phase">Ready to plan</h2><div class="value"><span>Remaining road</span><strong id="remaining">—</strong></div><div class="value"><span>Model ETA</span><strong id="eta">—</strong></div><label>Animation speed <select id="speed"><option value="1">1×</option><option value="10" selected>10×</option><option value="30">30×</option></select></label><label>Simulated congestion <select id="congestion"><option value="1">Light · 1×</option><option value="1.5">Medium · 1.5×</option><option value="2.5">Heavy · 2.5×</option></select></label><label class="check"><input id="follow" type="checkbox"> Follow vehicle</label><button id="view">Fit trip</button><button id="buildings" aria-pressed="true">3D buildings: on</button></aside>
+<footer class="glass"><button id="plan">Plan / Reset</button><button id="accept" disabled>Accept · drive to pickup</button><button id="start" disabled>Start Ride</button><button id="pause" disabled>Pause</button><button id="cancel" disabled>Cancel</button><span id="message" role="status">Loading Manhattan map…</span></footer>
+<div id="map-failure" hidden>Map library could not load. Check your connection and reload.</div>
+<script src="https://unpkg.com/maplibre-gl@5.7.1/dist/maplibre-gl.js" onerror="document.getElementById('map-failure').hidden=false"></script><script type="module" src="manhattan.js"></script></body></html>

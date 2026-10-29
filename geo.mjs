@@ -1,0 +1,4 @@
+export function distance(a,b){const r=Math.PI/180,lat=(b[1]-a[1])*r,lon=(b[0]-a[0])*r;const h=Math.sin(lat/2)**2+Math.cos(a[1]*r)*Math.cos(b[1]*r)*Math.sin(lon/2)**2;return 6371008.8*2*Math.asin(Math.sqrt(Math.min(1,h)));}
+export function measure(coords){let sum=0;return coords.map((p,i)=>{if(i)sum+=distance(coords[i-1],p);return sum;});}
+export function along(coords,cumulative,meters){if(meters<=0)return {point:coords[0],index:0};let i=1;while(i<cumulative.length&&cumulative[i]<meters)i++;if(i===cumulative.length)return {point:coords.at(-1),index:coords.length-1};const t=(meters-cumulative[i-1])/(cumulative[i]-cumulative[i-1]||1);return {point:coords[i-1].map((v,k)=>v+(coords[i][k]-v)*t),index:i};}
+export function remainder(route,meters){const v=along(route.coords,route.cumulative,meters);return [v.point,...route.coords.slice(v.index+(meters<=0?1:0))];}
