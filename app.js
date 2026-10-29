@@ -1550,7 +1550,9 @@ function updateUI() {
   ui.reject.disabled = state.status !== "requested";
   ui.cancel.disabled = !["requested", "to_pickup", "pickup_arrived"].includes(state.status);
   ui.start.disabled = state.status !== "pickup_arrived";
-  ui.move.disabled = !["to_pickup", "in_progress"].includes(state.status) || Boolean(tween);
+  ui.move.disabled = !["to_pickup", "in_progress"].includes(state.status);
+  ui.move.textContent = drivingPaused ? "Resume Driving ▶" : "Pause Driving ⏸";
+  ui.move.setAttribute("aria-pressed", String(drivingPaused));
   ui.reroute.disabled = !["requested", "to_pickup", "pickup_arrived", "in_progress"].includes(state.status) || Boolean(tween);
 
   if (routeLine) routeLine.visible = state.status !== "idle";
@@ -1571,10 +1573,11 @@ function requestTrip() {
 
 function acceptTrip() {
   if (state.status !== "requested") return;
+  drivingPaused = false;
   state.status = "to_pickup";
   buildActiveRoute(state.vehicle.location, state.pickup.coordinates, "to_pickup", false);
   setVehicleAtNode(state.vehicle.location, state.route.path[1] ?? null);
-  setMessage("Driver accepted. Move the vehicle along the blue route to pick up the rider.");
+  setMessage("Driver accepted. Automatically driving to the pickup location.");
   updateUI();
 }
 
@@ -1588,6 +1591,9 @@ function rejectTrip() {
 
 function cancelTrip() {
   if (!["requested", "to_pickup", "pickup_arrived"].includes(state.status)) return;
+  tween = null;
+  drivingPaused = false;
+  setVehicleAtNode(state.vehicle.location);
   state.status = "cancelled";
   state.driver.availability = true;
   setMessage("The rider cancelled the trip before departure.");
@@ -1604,15 +1610,36 @@ function arriveAtPickup() {
 
 function startTrip() {
   if (state.status !== "pickup_arrived") return;
+  drivingPaused = false;
   state.status = "in_progress";
   state.movementIndex = 0;
   setVehicleAtNode(state.route.path[0], state.route.path[1] ?? null);
   rider.visible = false;
-  setMessage("Passenger is onboard. Move the vehicle along the green route to the destination.");
+  setMessage("Passenger is onboard. Automatically driving to the destination.");
   updateUI();
 }
 
 let tween = null;
+let drivingPaused = false;
+let pausedAt = 0;
+
+function toggleDriving() {
+  if (!["to_pickup", "in_progress"].includes(state.status)) return;
+  drivingPaused = !drivingPaused;
+  if (drivingPaused) {
+    pausedAt = performance.now();
+  } else if (tween) {
+    tween.start += performance.now() - pausedAt;
+  }
+  setMessage(drivingPaused ? "Driving paused. Resume when ready." : "Automatic driving resumed.");
+  updateUI();
+}
+
+function advanceAutomaticDriving(now) {
+  if (drivingPaused || !["to_pickup", "in_progress"].includes(state.status)) return;
+  updateTween(now);
+  if (!tween) moveVehicle();
+}
 
 function moveVehicle() {
   if (!["to_pickup", "in_progress"].includes(state.status) || tween) return;
@@ -1638,7 +1665,7 @@ function moveVehicle() {
 function updateTween(now) {
   if (!tween) return;
   const t = Math.min(1, (now - tween.start) / tween.duration);
-  const eased = t * t * (3 - 2 * t);
+  const eased = t; // Constant speed within each road segment.
   vehicle.position.lerpVectors(tween.from, tween.to, eased);
   vehicle.position.y = 0.06;
 
@@ -1702,6 +1729,8 @@ function recalculateRoute() {
 
 function resetSimulation() {
   tween = null;
+  drivingPaused = false;
+  pausedAt = 0;
   state.status = "idle";
   state.tripId = null;
   state.driver.availability = true;
@@ -1736,7 +1765,7 @@ ui.accept.addEventListener("click", acceptTrip);
 ui.reject.addEventListener("click", rejectTrip);
 ui.cancel.addEventListener("click", cancelTrip);
 ui.start.addEventListener("click", startTrip);
-ui.move.addEventListener("click", moveVehicle);
+ui.move.addEventListener("click", toggleDriving);
 ui.trafficBtn.addEventListener("click", randomizeTraffic);
 ui.reroute.addEventListener("click", recalculateRoute);
 ui.reset.addEventListener("click", resetSimulation);
@@ -1750,7 +1779,7 @@ window.addEventListener("resize", () => {
 
 function animate(now) {
   requestAnimationFrame(animate);
-  updateTween(now);
+  advanceAutomaticDriving(now);
   controls.update();
   updateCompass();
   updateGhostVisibility();
