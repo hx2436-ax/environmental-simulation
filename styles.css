@@ -733,3 +733,36 @@ h1 {
   .title-card { top: 10px; left: 10px; right: 10px; border-radius: 20px; }
   .toolbar { left: 10px; right: 10px; bottom: 10px; border-radius: 20px; }
 }
+
+
+/* The two workshops share one scrollable panel instead of covering the city twice. */
+.workshop-tabs { top: 120px; left: 18px; width: 310px; padding: 5px; border-radius: 14px; display: flex; gap: 4px; }
+.workshop-tabs button { flex: 1; border: 0; border-radius: 10px; padding: 9px 4px; cursor: pointer; background: transparent; color: #635273; font-size: 11px; }
+.workshop-tabs button[aria-pressed="true"] { background: #e6dcfa; font-weight: 800; }
+.location-card { top: 170px; max-height: calc(100vh - 310px); display: none; }
+.distance-card { top: 170px; left: 18px; width: 310px; max-height: calc(100vh - 310px); overflow: auto; padding: 16px; border-radius: 22px; background: rgba(255,252,255,.95); }
+.distance-card h2 { font-size: 23px; margin: 6px 0 14px; letter-spacing: -.04em; }
+.distance-selectors { display: flex; gap: 10px; }
+.distance-selectors label { min-width: 0; width: 50%; font-size: 10px; color: #75618d; }
+.distance-selectors select { display: block; width: 100%; margin-top: 4px; padding: 8px 3px; border: 1px solid #dcd1ea; border-radius: 9px; background: white; color: #443451; }
+#distance-map { display: block; width: 100%; height: auto; margin-top: 12px; background: #f0ebf7; border-radius: 12px; }
+.distance-key { display: flex; justify-content: space-between; font-size: 9px; margin: 7px 0 12px; color: #795ca5; }
+.distance-key span:first-child { color: #bd3b79; }
+.distance-result { display: flex; justify-content: space-between; font-size: 11px; margin-top: 11px; }
+.distance-track { height: 7px; background: #eee7f3; border-radius: 8px; margin-top: 6px; overflow: hidden; }
+.distance-track i { display: block; height: 100%; background: #7953b5; }
+#distance-direct-bar { background: #d84e91; }
+.distance-threshold { display: flex; align-items: center; gap: 5px; font-size: 10px; margin-top: 13px; }
+.distance-threshold input { width: 70px; border: 1px solid #dcd1ea; border-radius: 6px; padding: 5px; }
+.distance-insight { padding: 10px; border-radius: 10px; background: #eee5fa; font-size: 12px; line-height: 1.5; }
+.distance-insight[data-split="true"] { background: #ffe7c4; color: #724815; }
+#distance-demo { width: 100%; padding: 9px; margin: 12px 0; border-radius: 10px; border: 1px solid #cdbbdf; background: #eee4fc; color: #4f3767; cursor: pointer; font-weight: 700; }
+.distance-overlay, .distance-card details { display: block; font-size: 10px; line-height: 1.6; margin-top: 7px; }
+.distance-card summary { cursor: pointer; }
+@media (max-width: 1100px) { .distance-card, .workshop-tabs { width: 274px; } }
+@media (max-width: 760px) {
+ .workshop-tabs { top: 88px; left: 10px; width: min(250px, calc(100vw - 120px)); }
+ .distance-card, .location-card { top: 138px; left: 10px; width: min(280px, calc(100vw - 20px)); max-height: calc(100vh - 235px); }
+ .route-map-card { display: none; }
+ .compass-card { top: 88px; }
+}

@@ -451,7 +451,7 @@ function updateRoadAppearance() {
   }
 }
 
-function dijkstra(start, goal) {
+function dijkstra(start, goal, metric = "time") {
   const n = nodePositions.length;
   const dist = Array(n).fill(Infinity);
   const prev = Array(n).fill(null);
@@ -474,7 +474,7 @@ function dijkstra(start, goal) {
     for (const e of adjacency[u]) {
       const v = e.a === u ? e.b : e.a;
       const traffic = state.roadTraffic.get(e.id);
-      const weight = e.distance * traffic;
+      const weight = e.distance * (metric === "distance" ? 1 : traffic);
       const alt = dist[u] + weight;
       if (alt < dist[v]) {
         dist[v] = alt;
@@ -487,7 +487,7 @@ function dijkstra(start, goal) {
   const path = [];
   const edgeIds = [];
   let cur = goal;
-  if (prev[cur] === null && cur !== start) return { path: [start, goal], edgeIds: [] };
+  if (prev[cur] === null && cur !== start) return { path: [], edgeIds: [] };
   while (cur !== null) {
     path.unshift(cur);
     if (prevEdge[cur]) edgeIds.unshift(prevEdge[cur]);
@@ -1556,6 +1556,7 @@ function updateUI() {
   if (routeLine) routeLine.visible = state.status !== "idle";
   drawRouteMap();
   updateLocationInspector();
+  updateDistanceLab();
 }
 
 function requestTrip() {
@@ -1755,6 +1756,81 @@ function animate(now) {
   updateGhostVisibility();
   renderer.render(scene, camera);
 }
+// Distance workshop: physical metrics remain independent of traffic weights.
+const distanceUI = Object.fromEntries(['from','to','positions','map','direct','network','direct-bar','network-bar','detour','threshold','insight','time','demo','overlay'].map(k => [k, document.getElementById(`distance-${k}`)]));
+const distanceGroup = new THREE.Group();
+scene.add(distanceGroup);
+const endpointOptions = [['driver','Driver'],['rider','Rider'],['pickup','Pickup'],['destination','Destination'], ...nodePositions.map((_,n) => [`node:${n}`,`Intersection (${n % GRID}, ${Math.floor(n / GRID)})`])];
+for (const select of [distanceUI.from, distanceUI.to]) {
+  for (const [value,label] of endpointOptions) {
+    const option = document.createElement('option'); option.value = value; option.textContent = label; select.appendChild(option);
+  }
+  select.addEventListener('change', updateDistanceLab);
+}
+distanceUI.from.value = 'driver'; distanceUI.to.value = 'rider';
+function distanceNode(value) { return value.startsWith('node:') ? Number(value.slice(5)) : nodeForKind(value); }
+function pathLength(result) { return result.path.length ? result.edgeIds.reduce((sum,id) => sum + edges.find(e => e.id === id).distance,0) : Infinity; }
+function clearDistanceOverlay() {
+  while (distanceGroup.children.length) {
+    const child = distanceGroup.children[0]; distanceGroup.remove(child); child.geometry.dispose(); child.material.dispose();
+  }
+}
+function updateDistanceLab() {
+  const a = distanceNode(distanceUI.from.value), b = distanceNode(distanceUI.to.value);
+  const start = nodePositions[a], end = nodePositions[b];
+  const direct = start.distanceTo(end) * 115;
+  const shortest = dijkstra(a,b,'distance'), fastest = dijkstra(a,b);
+  const network = pathLength(shortest), fastestDistance = pathLength(fastest);
+  const minutes = fastest.edgeIds.reduce((sum,id) => sum + edges.find(e => e.id === id).distance * state.roadTraffic.get(id) / 240,0);
+  const threshold = Math.max(100, Math.min(10000, Number(distanceUI.threshold.value) || 1200));
+  const fmt = n => Number.isFinite(n) ? `${Math.round(n).toLocaleString()} m` : 'Unreachable';
+  distanceUI.positions.textContent = `A: (${a % GRID}, ${Math.floor(a / GRID)}) → B: (${b % GRID}, ${Math.floor(b / GRID)}) · occupied intersections`;
+  distanceUI.direct.textContent = fmt(direct); distanceUI.network.textContent = fmt(network);
+  const scale = Math.max(direct, Number.isFinite(network) ? network : 0, 1);
+  distanceUI['direct-bar'].style.width = `${direct/scale*100}%`;
+  distanceUI['network-bar'].style.width = `${Number.isFinite(network) ? network/scale*100 : 0}%`;
+  distanceUI.detour.textContent = direct > 0 && Number.isFinite(network) ? `${(network/direct).toFixed(2)}× the direct distance · ${fmt(network-direct)} extra · ${shortest.edgeIds.length} road segments` : a === b ? 'Same occupied intersection · both distances are zero.' : 'No connected road path.';
+  const split = direct <= threshold && network > threshold;
+  distanceUI.insight.dataset.split = String(split);
+  distanceUI.insight.textContent = split ? `Close by sight, far by road: within ${threshold} m directly, but outside ${threshold} m along the network.` : a === b ? 'These endpoints occupy the same location.' : `Both metrics classify these endpoints as ${network <= threshold ? 'close' : 'far'} at a ${threshold} m threshold.`;
+  distanceUI.time.textContent = Number.isFinite(fastestDistance) ? `Traffic-aware fastest route: ${fmt(fastestDistance)} · ${minutes.toFixed(1)} min. The purple path shows shortest distance, not necessarily fastest time.` : 'No driving route available.';
+  const ctx = distanceUI.map.getContext('2d'); const w=600,h=270,pad=38;
+  const s = Math.min((w-2*pad)/WORLD_X,(h-2*pad)/WORLD_Z);
+  const point = n => ({x:w/2+nodePositions[n].x*s,y:h/2+nodePositions[n].z*s});
+  ctx.clearRect(0,0,w,h);
+  function drawPath(path,color,width,dash=[]) {
+    if (!path.length) return;
+    ctx.beginPath(); ctx.strokeStyle=color; ctx.lineWidth=width; ctx.lineJoin='round'; ctx.setLineDash(dash);
+    path.forEach((n,i) => { const p=point(n); i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y); }); ctx.stroke(); ctx.setLineDash([]);
+  }
+  for (const edge of edges) drawPath([edge.a,edge.b],'#d2c8df',2);
+  drawPath(shortest.path,'#7953b5',6); drawPath([a,b],'#d84e91',4,[9,7]);
+  for (const [n,label] of [[a,'A'],[b,'B']]) { const p=point(n); ctx.fillStyle='#43324f'; ctx.beginPath();ctx.arc(p.x,p.y,6,0,Math.PI*2);ctx.fill();ctx.font='bold 18px sans-serif';ctx.fillText(label,p.x+9,p.y-9); }
+  ctx.font='13px sans-serif';ctx.fillText('N ↑',16,22);
+  clearDistanceOverlay();
+  function addLine(path,color,dashed) {
+    if(path.length<2) return;
+    const points=path.map(n => nodePositions[n].clone().setY(.24));
+    const material = dashed ? new THREE.LineDashedMaterial({color,dashSize:.5,gapSize:.3,depthTest:false,depthWrite:false}) : new THREE.LineBasicMaterial({color,depthTest:false,depthWrite:false});
+    const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),material); line.computeLineDistances();line.renderOrder=35;distanceGroup.add(line);
+  }
+  addLine(shortest.path,0x7953b5,false); addLine([a,b],0xd84e91,true);
+  distanceGroup.visible = distanceUI.overlay.checked && document.getElementById('distance-tab').getAttribute('aria-pressed') === 'true';
+}
+distanceUI.threshold.addEventListener('input',updateDistanceLab);
+distanceUI.overlay.addEventListener('change',updateDistanceLab);
+distanceUI.demo.addEventListener('click',() => {
+  distanceUI.from.value=`node:${NODE(1,1)}`; distanceUI.to.value=`node:${NODE(2,3)}`; distanceUI.threshold.value='1200'; updateDistanceLab();
+});
+for (const tab of ['distance','location']) document.getElementById(`${tab}-tab`).addEventListener('click',() => {
+  for (const name of ['distance','location']) {
+    document.querySelector(`.${name}-card`).style.display = name === tab ? 'block' : 'none';
+    document.getElementById(`${name}-tab`).setAttribute('aria-pressed',String(name === tab));
+  }
+  updateDistanceLab();
+});
+
 resetSimulation();
 updateCompass();
 requestAnimationFrame(animate);
+

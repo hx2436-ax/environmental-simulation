@@ -48,6 +48,33 @@
     <div class="metric"><span>Average traffic</span><strong id="traffic">—</strong></div>
   </aside>
 
+  <nav class="hud workshop-tabs" aria-label="Workshop tools">
+    <button id="distance-tab" aria-pressed="true">Distance Lab</button>
+    <button id="location-tab" aria-pressed="false">Location Inspector</button>
+  </nav>
+  <aside class="hud distance-card" aria-label="Distance workshop">
+    <p class="location-eyebrow">DISTANCE WORKSHOP / TWO METRICS</p>
+    <h2>How far is close?</h2>
+    <div class="distance-selectors">
+      <label>From A<select id="distance-from"></select></label>
+      <label>To B<select id="distance-to"></select></label>
+    </div>
+    <p id="distance-positions" class="location-copy"></p>
+    <canvas id="distance-map" width="600" height="270" aria-label="Comparison of direct and road paths"></canvas>
+    <div class="distance-key"><span>··· Straight line</span><span>━ Shortest road path</span></div>
+    <div class="distance-result"><span>01 · Euclidean</span><strong id="distance-direct"></strong></div>
+    <div class="distance-track"><i id="distance-direct-bar"></i></div>
+    <div class="distance-result"><span>02 · Road network</span><strong id="distance-network"></strong></div>
+    <div class="distance-track"><i id="distance-network-bar"></i></div>
+    <p id="distance-detour" class="location-copy"></p>
+    <label class="distance-threshold">“Close” threshold <input id="distance-threshold" type="number" min="100" max="10000" step="100" value="1200"> m</label>
+    <p id="distance-insight" class="distance-insight" aria-live="polite"></p>
+    <p id="distance-time" class="location-copy"></p>
+    <button id="distance-demo">Show near / far example</button>
+    <label class="distance-overlay"><input id="distance-overlay" type="checkbox" checked> Show both distances in 3D</label>
+    <details><summary>How measurements work</summary><p>Euclidean = √(Δx² + Δz²). Road distance = sum of edge lengths along the shortest connected path (Dijkstra). Both use the same model scale: 115 m per world unit, not surveyed NYC distances. Traffic changes the fastest route and its time, not the shortest physical road distance. Travel time assumes 240 m/min divided by each road’s congestion factor.</p><p>Agents occupy road intersections. During a movement animation, measurements use the last reached intersection; they update on arrival. A rider on board occupies the driver’s intersection. Select any two intersections to compare fixed locations.</p></details>
+  </aside>
+
   <aside class="hud location-card" aria-label="Location workshop inspector">
     <div class="location-header">
       <div>
@@ -146,3 +173,4 @@
   <script type="module" src="./app.js"></script>
 </body>
 </html>
+
